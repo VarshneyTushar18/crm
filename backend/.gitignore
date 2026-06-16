@@ -1,0 +1,27 @@
+node_modules/
+*.zip
+.DS_Store
+.idea
+.vscode/
+notes.md
+
+# Secrets
+.env
+.env.*
+!.env.example
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Uploads (user-generated)
+uploads/*
+!uploads/.gitkeep
+
+# Build / cache
+dist/
+.cache/
+.eslintcache
+
+*.pdf
