@@ -1,12 +1,4 @@
 {
   "name": "crm-monorepo",
-  "private": true,
-  "dependencies": {
-    "bcrypt": "^6.0.0",
-    "module-alias": "^2.2.3",
-    "mongodb": "^7.1.0"
-  },
-  "_moduleAliases": {
-    "@": "backend/src"
-  }
+  "private": true
 }

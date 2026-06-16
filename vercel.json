@@ -1,13 +1,15 @@
 {
-  "version": 2,
-  "installCommand": "npm install && npm install --prefix backend",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm install --prefix backend",
+  "buildCommand": "echo \"API-only deployment\"",
+  "outputDirectory": ".",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api" }
+  ],
   "functions": {
     "api/index.js": {
-      "runtime": "nodejs20.x",
-      "includeFiles": "backend/src/**"
+      "includeFiles": "backend/**"
     }
-  },
-  "routes": [
-    { "src": "/(.*)", "dest": "/api/index.js" }
-  ]
+  }
 }
