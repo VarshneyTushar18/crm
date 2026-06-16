@@ -1,0 +1,9 @@
+{
+  "name": "Admin",
+  "surname": "User",
+  "email": "admin@admin.com",
+  "password": "$2b$10$CwTycUXWue0Thq9StjUM0uJ8HhZpFz8pQ5aKqFz8pQ5aKqFz8pQ5aK", 
+  "role": "admin",
+  "enabled": true,
+  "removed": false
+}
