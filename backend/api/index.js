@@ -1,5 +1,11 @@
-require("module-alias/register");
 const path = require("path");
+const moduleAlias = require("module-alias");
+
+// Explicit alias path — Vercel cwd may not be backend/, so package.json aliases can fail.
+moduleAlias.addAliases({
+  "@": path.resolve(__dirname, "../src"),
+});
+
 const mongoose = require("mongoose");
 const { globSync } = require("glob");
 

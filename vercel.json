@@ -1,9 +1,10 @@
 {
   "version": 2,
-  "installCommand": "npm install --prefix backend",
+  "installCommand": "npm install && npm install --prefix backend",
   "functions": {
     "api/index.js": {
-      "runtime": "nodejs20.x"
+      "runtime": "nodejs20.x",
+      "includeFiles": "backend/src/**"
     }
   },
   "routes": [
