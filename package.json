@@ -50,7 +50,7 @@
   "_moduleAliases": {
     "@": "src"
   },
-  "main": "server.js",
+  "main": "src/server.js",
   "author": "IDURAR",
   "email": "hello@idurarapp.com",
   "license": "Fair-code License",
