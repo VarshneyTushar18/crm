@@ -1,0 +1,304 @@
+/* ── Admin shell ── */
+.admin-shell {
+  min-height: 100vh;
+  background: #f5f5f5 !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start;
+  padding: 20px;
+  gap: 20px;
+}
+
+.admin-shell > .ant-layout-sider.navigation {
+  flex: 0 0 256px;
+  max-width: 256px;
+  height: calc(100vh - 40px) !important;
+  position: sticky !important;
+  top: 20px !important;
+  left: auto !important;
+  border-radius: 12px;
+  border: 1px solid #edf0f5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: auto;
+}
+
+.admin-main {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: transparent !important;
+}
+
+.admin-main--desktop {
+  margin: 0 !important;
+}
+
+.admin-main--mobile {
+  margin: 0;
+  padding-top: 56px;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.admin-header {
+  background: #fff;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  border: 1px solid #f0f0f0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  flex-shrink: 0;
+}
+
+.admin-header--desktop {
+  padding: 0 20px;
+  height: 64px;
+  line-height: 64px;
+}
+
+.admin-header--mobile {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1001;
+  border-radius: 0;
+  padding: 0 12px;
+  height: 56px;
+  border-bottom: 1px solid #f0f0f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.admin-header__title {
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+}
+
+.admin-content {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #f0f0f0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  flex: 1;
+  width: 100%;
+  min-height: calc(100vh - 124px);
+}
+
+.admin-content--desktop {
+  margin-top: 16px;
+  padding: 24px;
+}
+
+.admin-content--mobile {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 0;
+  min-height: calc(100vh - 68px);
+  border-left: none;
+  border-right: none;
+}
+
+.dashboard-toolbar {
+  margin-bottom: 24px;
+  border-radius: 10px;
+}
+
+.dashboard-section-title {
+  color: #22075e !important;
+  margin-bottom: 16px !important;
+  font-weight: 600 !important;
+}
+
+.dashboard-page {
+  width: 100%;
+}
+
+.dashboard-page .whiteBox.shadow {
+  border-radius: 10px;
+}
+
+.dashboard-row {
+  width: 100%;
+}
+
+/* ── Page helpers ── */
+/* Pages inside admin content should not add extra outer padding */
+.admin-content .page-shell {
+  padding: 0;
+}
+
+@media (min-width: 992px) {
+  .page-shell {
+    padding: 0;
+  }
+}
+
+@media (max-width: 991px) {
+  .admin-content .page-shell,
+  .page-shell {
+    padding: 0;
+  }
+}
+
+.page-shell__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.page-shell__title {
+  margin: 0;
+}
+
+.table-responsive-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table-responsive-wrap .ant-table {
+  min-width: 640px;
+}
+
+.kanban-board-scroll {
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.kanban-board-row {
+  flex-wrap: nowrap !important;
+  min-width: min(100%, 1200px);
+}
+
+.kanban-column {
+  min-width: 260px;
+}
+
+/* ── Customer portal ── */
+.customer-shell .customer-sider--desktop {
+  display: block;
+}
+
+.customer-shell .customer-sider--mobile {
+  display: none;
+}
+
+.customer-mobile-header {
+  display: none;
+}
+
+/* ── Navigation ── */
+.navigation.navigation--drawer {
+  height: auto !important;
+  position: relative !important;
+  left: 0 !important;
+  top: 0 !important;
+  border-right: none !important;
+}
+
+.navigation.navigation--drawer .logo {
+  margin: 12px 16px 20px;
+  width: auto;
+}
+
+.navigation.navigation--drawer .ant-menu {
+  width: 100% !important;
+}
+
+@media (max-width: 991px) {
+  .admin-shell {
+    padding: 0;
+    gap: 0;
+  }
+
+  .admin-content .page-shell {
+    padding: 0;
+  }
+
+  .page-shell {
+    padding: 12px;
+  }
+
+  .wideNavigation,
+  .smallNavigation {
+    margin-left: 0 !important;
+  }
+
+  .customer-shell .customer-sider--desktop {
+    display: none;
+  }
+
+  .customer-shell .customer-mobile-header {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1001;
+    height: 56px;
+    padding: 0 12px;
+    background: #fff;
+    border-bottom: 1px solid #f0f0f0;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+
+  .customer-shell .customer-main {
+    padding-top: 56px !important;
+  }
+
+  .customer-shell .customer-content {
+    padding: 12px !important;
+  }
+
+  .ant-descriptions-bordered .ant-descriptions-item-label,
+  .ant-descriptions-bordered .ant-descriptions-item-content {
+    padding: 8px 12px !important;
+  }
+
+  .ant-modal {
+    max-width: calc(100vw - 16px) !important;
+    margin: 8px auto !important;
+  }
+
+  .ant-picker-range {
+    width: 100% !important;
+  }
+
+  .whiteBox .ant-select {
+    width: 100% !important;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 575px) {
+  .page-shell {
+    padding: 8px;
+  }
+
+  .admin-content--mobile {
+    padding: 8px;
+  }
+
+  .ant-card-head-title {
+    white-space: normal;
+  }
+
+  .ant-space-horizontal {
+    flex-wrap: wrap;
+  }
+}
