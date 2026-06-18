@@ -132,12 +132,16 @@ export default function Employee() {
           : "",
         status: values.status,
         address: values.address || "",
+        password: values.password || undefined,
       };
 
       const res = await createEmployee(payload);
 
       if (res?.success) {
-        message.success(res?.message || "Employee created successfully");
+        const loginHint = res?.login?.workerId
+          ? ` Login: ${res.login.workerId} / ${values.password || "Worker@123"}`
+          : "";
+        message.success((res?.message || "Employee created successfully") + loginHint);
         createForm.resetFields();
         setIsCreateModalOpen(false);
         fetchEmployees();
@@ -548,6 +552,17 @@ export default function Employee() {
 
             <Col span={12}>
               <Form.Item
+                label="Login Password"
+                name="password"
+                extra="Optional. Default is Worker@123. Worker login is created automatically."
+                rules={[{ min: 6, message: "Password must be at least 6 characters" }]}
+              >
+                <Input.Password placeholder="Default: Worker@123" />
+              </Form.Item>
+            </Col>
+
+            <Col span={12}>
+              <Form.Item
                 label="Joining Date"
                 name="joiningDate"
                 rules={[{ required: true, message: "Please select joining date" }]}
@@ -802,7 +817,8 @@ export default function Employee() {
           </Form.Item>
 
           <Text type="secondary">
-            This updates the worker login password linked by employee email/ID.
+            Sets the worker login password. If no login exists yet, one is created
+            automatically using Employee ID ({resettingEmployee?.employeeId || "EMPxxx"}) or email.
           </Text>
         </Form>
       </Modal>
