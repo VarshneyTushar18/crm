@@ -28,6 +28,61 @@ async function generateEmployeeId() {
   return `EMP${nextNumber}`;
 }
 
+const DEFAULT_WORKER_PASSWORD = "Worker@123";
+
+async function ensureWorkerLoginForEmployee(employee, newPassword) {
+  const normalizedEmail = String(employee.email || "").toLowerCase().trim();
+  const normalizedEmployeeId = String(employee.employeeId || "").trim();
+  const password = String(newPassword || DEFAULT_WORKER_PASSWORD).trim();
+
+  if (password.length < 6) {
+    throw new Error("Password must be at least 6 characters");
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  let user = await User.findOne({
+    role: "worker",
+    $or: [{ email: normalizedEmail }, { workerId: normalizedEmployeeId }],
+  });
+
+  if (!user) {
+    const emailTaken = await User.findOne({ email: normalizedEmail });
+    if (emailTaken) {
+      throw new Error(
+        "This email is already used by another account. Use a different employee email."
+      );
+    }
+
+    const workerIdTaken = await User.findOne({ workerId: normalizedEmployeeId });
+    if (workerIdTaken) {
+      throw new Error(
+        "This employee ID is already used as a worker login ID by another user."
+      );
+    }
+
+    user = await User.create({
+      name: employee.name,
+      email: normalizedEmail,
+      workerId: normalizedEmployeeId,
+      password: passwordHash,
+      role: "worker",
+      isActive: employee.status !== "Inactive",
+    });
+
+    return { user, created: true };
+  }
+
+  user.password = passwordHash;
+  user.name = employee.name || user.name;
+  user.email = normalizedEmail;
+  if (normalizedEmployeeId) user.workerId = normalizedEmployeeId;
+  user.isActive = employee.status !== "Inactive";
+  await user.save();
+
+  return { user, created: false };
+}
+
 const create = async (req, res) => {
   try {
     const {
@@ -39,6 +94,7 @@ const create = async (req, res) => {
       joiningDate,
       status,
       address,
+      password,
     } = req.body;
 
     if (!name || !email || !phone || !designation || !department || !joiningDate) {
@@ -80,10 +136,33 @@ const create = async (req, res) => {
       address: address ? String(address).trim() : "",
     });
 
+    let loginInfo = null;
+    try {
+      const { user, created } = await ensureWorkerLoginForEmployee(
+        employee,
+        password
+      );
+      loginInfo = {
+        workerId: user.workerId,
+        email: user.email,
+        created,
+        defaultPasswordUsed: !password,
+      };
+    } catch (loginError) {
+      await Employee.findByIdAndDelete(employee._id);
+      return res.status(400).json({
+        success: false,
+        message: `Employee not saved: ${loginError.message}`,
+      });
+    }
+
     return res.status(201).json({
       success: true,
-      message: "Employee created successfully",
+      message: loginInfo?.created
+        ? `Employee and worker login created. Login with ${loginInfo.workerId} or ${loginInfo.email}.`
+        : "Employee created successfully",
       result: employee,
+      login: loginInfo,
     });
   } catch (error) {
     console.error("Employee create error:", error);
@@ -280,32 +359,27 @@ const resetPassword = async (req, res) => {
     const normalizedEmail = String(employee.email || "").toLowerCase().trim();
     const normalizedEmployeeId = String(employee.employeeId || "").trim();
 
-    const user = await User.findOne({
-      role: "worker",
-      $or: [{ email: normalizedEmail }, { workerId: normalizedEmployeeId }],
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "No worker login account found for this employee. Create/link worker user first.",
-      });
-    }
-
-    user.password = await bcrypt.hash(String(newPassword).trim(), 10);
-    await user.save();
+    const { user, created } = await ensureWorkerLoginForEmployee(
+      employee,
+      newPassword
+    );
 
     return res.status(200).json({
       success: true,
-      message: `Password reset successful for ${employee.name || "employee"}`,
+      message: created
+        ? `Worker login created for ${employee.name}. Login with ${normalizedEmployeeId} or ${normalizedEmail}.`
+        : `Password reset successful for ${employee.name || "employee"}`,
+      result: {
+        workerId: user.workerId,
+        email: user.email,
+        createdLogin: created,
+      },
     });
   } catch (error) {
     console.error("Employee reset password error:", error);
-    return res.status(500).json({
+    return res.status(error.message?.includes("already used") ? 400 : 500).json({
       success: false,
-      message: "Failed to reset password",
-      error: error.message,
+      message: error.message || "Failed to reset password",
     });
   }
 };
