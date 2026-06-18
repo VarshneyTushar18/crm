@@ -24,6 +24,7 @@ import {
   createEmployee,
   updateEmployee,
   deleteEmployee,
+  resetEmployeePassword,
 } from "./employeeApi";
 
 const { Title, Text } = Typography;
@@ -60,12 +61,16 @@ export default function Employee() {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
+  const [resettingEmployee, setResettingEmployee] = useState(null);
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [searchText, setSearchText] = useState("");
 
   const [createForm] = Form.useForm();
   const [editForm] = Form.useForm();
+  const [resetPasswordForm] = Form.useForm();
 
   useEffect(() => {
     fetchEmployees();
@@ -241,6 +246,40 @@ export default function Employee() {
     }
   };
 
+  const openResetPasswordModal = (record) => {
+    setResettingEmployee(record);
+    resetPasswordForm.resetFields();
+    setIsResetPasswordModalOpen(true);
+  };
+
+  const handleResetEmployeePassword = async () => {
+    try {
+      const values = await resetPasswordForm.validateFields();
+      setResettingPassword(true);
+
+      const res = await resetEmployeePassword(
+        resettingEmployee?._id,
+        values.newPassword
+      );
+
+      if (res?.success) {
+        message.success(res?.message || "Password reset successfully");
+        setIsResetPasswordModalOpen(false);
+        setResettingEmployee(null);
+        resetPasswordForm.resetFields();
+      } else {
+        message.error(res?.message || "Failed to reset password");
+      }
+    } catch (error) {
+      if (error?.errorFields) return;
+      message.error(
+        error?.response?.data?.message || "Failed to reset employee password"
+      );
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
   const columns = [
     {
       title: "Employee ID",
@@ -294,12 +333,16 @@ export default function Employee() {
     },
     {
       title: "Action",
-      width: 180,
+      width: 260,
       fixed: "right",
       render: (_, record) => (
         <Space wrap>
           <Button type="link" onClick={() => openEditModal(record)}>
             Edit
+          </Button>
+
+          <Button type="link" onClick={() => openResetPasswordModal(record)}>
+            Reset Password
           </Button>
 
           <Popconfirm
@@ -706,6 +749,62 @@ export default function Employee() {
             </Text>
           </Space>
         </div>
+      </Modal>
+
+      <Modal
+        title={`Reset Password${resettingEmployee?.name ? ` — ${resettingEmployee.name}` : ""}`}
+        open={isResetPasswordModalOpen}
+        onOk={handleResetEmployeePassword}
+        confirmLoading={resettingPassword}
+        onCancel={() => {
+          setIsResetPasswordModalOpen(false);
+          setResettingEmployee(null);
+          resetPasswordForm.resetFields();
+        }}
+        okText="Reset Password"
+        destroyOnClose
+      >
+        <Form form={resetPasswordForm} layout="vertical">
+          <Form.Item label="Employee ID">
+            <Input value={resettingEmployee?.employeeId || ""} disabled />
+          </Form.Item>
+
+          <Form.Item
+            label="New Password"
+            name="newPassword"
+            rules={[
+              { required: true, message: "Please enter new password" },
+              { min: 6, message: "Password must be at least 6 characters" },
+            ]}
+          >
+            <Input.Password placeholder="Enter new password" />
+          </Form.Item>
+
+          <Form.Item
+            label="Confirm Password"
+            name="confirmPassword"
+            dependencies={["newPassword"]}
+            rules={[
+              { required: true, message: "Please confirm new password" },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue("newPassword") === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(
+                    new Error("Confirm password does not match")
+                  );
+                },
+              }),
+            ]}
+          >
+            <Input.Password placeholder="Confirm new password" />
+          </Form.Item>
+
+          <Text type="secondary">
+            This updates the worker login password linked by employee email/ID.
+          </Text>
+        </Form>
       </Modal>
     </div>
   );

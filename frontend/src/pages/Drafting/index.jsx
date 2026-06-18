@@ -87,6 +87,7 @@ export default function Drafting() {
   const eligibleJobs = useMemo(() => {
     return jobs.filter(
       (job) =>
+        job?.workflowEvents?.planning?.isCompleted ||
         job?.workflowEvents?.clientApproval?.isCompleted ||
         String(job?.stage || "").toLowerCase() === "drafting"
     );
@@ -194,6 +195,7 @@ export default function Drafting() {
       }
 
       if (
+        !job?.workflowEvents?.planning?.isCompleted &&
         !job?.workflowEvents?.clientApproval?.isCompleted &&
         String(job?.stage || "").toLowerCase() !== "drafting"
       ) {

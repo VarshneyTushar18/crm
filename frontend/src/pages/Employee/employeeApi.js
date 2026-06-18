@@ -35,3 +35,10 @@ export const deleteEmployee = async (id) => {
   const res = await axiosInstance.delete(`employee/delete/${id}`);
   return res.data;
 };
+
+export const resetEmployeePassword = async (id, newPassword) => {
+  const res = await axiosInstance.patch(`employee/reset-password/${id}`, {
+    newPassword,
+  });
+  return res.data;
+};

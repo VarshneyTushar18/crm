@@ -73,7 +73,17 @@ export default function Jobs() {
     navigate(route, { state: { job } });
   };
 
-
+  const handleDelete = async (id) => {
+    try {
+      await deleteJob(id);
+      message.success("Job archived");
+      await fetchJobs();
+    } catch (err) {
+      message.error(
+        err?.response?.data?.message || err?.message || "Failed to archive job"
+      );
+    }
+  };
 
   const filteredJobs = useMemo(() => {
     return jobs.filter((j) => {

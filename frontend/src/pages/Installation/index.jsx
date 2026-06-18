@@ -32,7 +32,7 @@ import {
   FileDoneOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useJob } from "../../context/JobContext";
 import { getJobs, updateJob } from "../Jobs/jobApi";
 import { getEmployees } from "../Employee/employeeApi";
@@ -77,6 +77,7 @@ const JOB_STATUS_COLORS = {
 export default function Installation() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { activeJobId, setActiveJobId } = useJob?.() || {};
 
   const [loading, setLoading] = useState(false);
@@ -119,7 +120,18 @@ export default function Installation() {
   useEffect(() => {
     if (!jobs.length) return;
 
-    const stateJob = location?.state?.fromJob;
+    const queryJobId = searchParams.get("jobId");
+    const stateJob = location?.state?.job || location?.state?.fromJob;
+
+    if (queryJobId) {
+      const found = jobs.find((j) => j._id === queryJobId);
+      if (found) {
+        setSelectedJob(found);
+        setActiveJobId?.(found._id);
+        return;
+      }
+    }
+
     if (stateJob?._id) {
       setSelectedJob(stateJob);
       setActiveJobId?.(stateJob._id);
@@ -130,7 +142,7 @@ export default function Installation() {
       const found = jobs.find((j) => j._id === activeJobId);
       if (found) setSelectedJob(found);
     }
-  }, [jobs, activeJobId, location?.state, setActiveJobId]);
+  }, [jobs, activeJobId, location?.state, searchParams, setActiveJobId]);
 
   useEffect(() => {
     if (selectedJob?._id) {

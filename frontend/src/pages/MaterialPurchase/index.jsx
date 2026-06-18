@@ -87,7 +87,12 @@ export default function MaterialPurchase() {
   const jobKey = jobId ? `activeJobData_${jobId}` : null;
 
   const eligibleJobs = useMemo(() => {
-    return jobs.filter((job) => job?.workflowEvents?.clientApproval?.isCompleted);
+    return jobs.filter(
+      (job) =>
+        job?.workflowEvents?.clientApproval?.isCompleted ||
+        job?.workflowEvents?.drafting?.isCompleted ||
+        String(job?.stage || "").toLowerCase().includes("material")
+    );
   }, [jobs]);
 
   const fetchJobs = async () => {

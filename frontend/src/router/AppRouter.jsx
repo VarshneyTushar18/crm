@@ -45,6 +45,7 @@ import CustomerInvoices from "../pages/CustomerPortal/Invoices";
 import CustomerPayments from "../pages/CustomerPortal/Payments";
 import ContactUs from "../pages/CustomerPortal/ContactUs";
 import ContactRequests from "../pages/Admin/ContactRequests";
+import About from "../pages/About";
 
 // ✅ Idurar modules
 import DashboardModule from "../modules/DashboardModule";
@@ -165,6 +166,8 @@ export default function AppRouter() {
             <Route path="general" element={<GeneralSettingsModule />} />
             <Route path="money-format" element={<MoneyFormatSettingsModule />} />
           </Route>
+
+          <Route path="about" element={<About />} />
 
           <Route path="*" element={<div style={{ padding: 20 }}>Admin route not found</div>} />
         </Route>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Form, Input, Select, DatePicker, InputNumber, Card, Radio, Divider, message } from 'antd';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ErpLayout } from '@/layout';
 import useLanguage from '@/locale/useLanguage';
 import { invoiceApi } from '../invoiceApi';
@@ -11,6 +11,7 @@ const { TextArea } = Input;
 export default function CreateInvoiceModule() {
   const translate = useLanguage();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState([]);
@@ -27,7 +28,17 @@ export default function CreateInvoiceModule() {
   const loadJobs = async (searchText = '') => {
     try {
       const response = await invoiceApi.searchJobs(searchText);
-      setJobs(response.result || []);
+      const list = response.result || [];
+      setJobs(list);
+
+      const preselectedJobId = searchParams.get('job');
+      if (preselectedJobId && list.length) {
+        const job = list.find((j) => j._id === preselectedJobId);
+        if (job) {
+          form.setFieldsValue({ job: job._id });
+          setSelectedJob(job);
+        }
+      }
     } catch (error) {
       message.error('Failed to load jobs');
     }
