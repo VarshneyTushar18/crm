@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
 const Employee = mongoose.model("Employee");
+const User = mongoose.model("User");
 
 function formatDateToDDMMYYYY(date = new Date()) {
   const dd = String(date.getDate()).padStart(2, "0");
@@ -248,10 +250,71 @@ const remove = async (req, res) => {
   }
 };
 
+const resetPassword = async (req, res) => {
+  try {
+    if (req.user?.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can reset employee passwords",
+      });
+    }
+
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    if (!newPassword || String(newPassword).trim().length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "New password must be at least 6 characters",
+      });
+    }
+
+    const employee = await Employee.findById(id).lean();
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found",
+      });
+    }
+
+    const normalizedEmail = String(employee.email || "").toLowerCase().trim();
+    const normalizedEmployeeId = String(employee.employeeId || "").trim();
+
+    const user = await User.findOne({
+      role: "worker",
+      $or: [{ email: normalizedEmail }, { workerId: normalizedEmployeeId }],
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "No worker login account found for this employee. Create/link worker user first.",
+      });
+    }
+
+    user.password = await bcrypt.hash(String(newPassword).trim(), 10);
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Password reset successful for ${employee.name || "employee"}`,
+    });
+  } catch (error) {
+    console.error("Employee reset password error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to reset password",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   create,
   list,
   read,
   update,
   delete: remove,
+  resetPassword,
 };
