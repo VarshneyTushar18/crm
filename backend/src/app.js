@@ -13,6 +13,7 @@ const photoRoutes = require("./routes/mobile/photoRoutes");
 const adminAuth = require("./controllers/coreControllers/adminAuth");
 const workUpdateRoutes = require("./routes/mobile/workUpdateRoutes");
 const errorHandlers = require("./handlers/errorHandlers");
+const handleUploadErrors = require("./middlewares/handleUploadErrors");
 const erpApiRouter = require("./routes/appRoutes/appApi");
 
 // Custom auth routes
@@ -92,6 +93,7 @@ app.get("/api/health", (req, res) => {
 // ============================
 // ERROR HANDLERS
 // ============================
+app.use(handleUploadErrors);
 app.use(errorHandlers.notFound);
 app.use(errorHandlers.productionErrors);
 

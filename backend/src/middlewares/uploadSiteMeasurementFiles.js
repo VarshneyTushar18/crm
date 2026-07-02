@@ -3,6 +3,8 @@ const path = require("path");
 const fs = require("fs");
 const { slugify } = require("transliteration");
 
+const { acceptImagePdfDrawing } = require("../utils/uploadFileFilter");
+
 const storage = multer.diskStorage({
   destination(req, file, cb) {
     const uploadPath = path.join(__dirname, "../../uploads/site-measurement");
@@ -20,21 +22,10 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowed = [
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "application/pdf",
-    "image/vnd.dwg",
-    "application/acad",
-    "video/mp4",
-    "video/quicktime",
-    "video/webm",
-  ];
-  if (allowed.includes(file.mimetype) || file.originalname.match(/\.(dwg|dxf)$/i)) {
+  if (acceptImagePdfDrawing(file)) {
     cb(null, true);
   } else {
-    cb(new Error("Only JPEG, PNG, PDF, or drawing files are allowed"), false);
+    cb(new Error("Only JPEG, PNG, PDF, video, or drawing files are allowed"), false);
   }
 };
 

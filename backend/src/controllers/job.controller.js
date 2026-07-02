@@ -20,6 +20,7 @@ const {
   migrateJobWorkflowToV3,
 } = require("../utils/workflowDefaults");
 const { validateStageCompletion } = require("../utils/workflowGates");
+const { validateStageManualFields } = require("../utils/stageManualFields");
 const { processMilestoneBilling } = require("../utils/milestoneBilling");
 const { notifyCustomer } = require("../services/notificationService");
 
@@ -237,17 +238,38 @@ exports.updateJob = async (req, res) => {
       payload.customer = customer.name || customer.companyName || payload.customer || "";
     }
 
+    const actor = req.admin?.name || req.user?.name || "System";
+    const seStagesToSubmit = [];
+
     if (payload.workflowEvents) {
       const stageKeys = getWorkflowStageKeys(job);
       for (const key of stageKeys) {
         const incoming = payload.workflowEvents[key];
         if (!incoming) continue;
+
+        const merged = { ...(job.workflowEvents?.[key] || {}), ...incoming };
         const willComplete =
           incoming.isCompleted === true || incoming.stageStatus === "Complete";
+
         if (willComplete) {
           const gate = validateStageCompletion(job, key);
           if (!gate.ok) {
             return res.status(400).json({ success: false, message: gate.message });
+          }
+
+          const fieldCheck = validateStageManualFields(key, merged);
+          if (!fieldCheck.ok) {
+            return res.status(400).json({ success: false, message: fieldCheck.message });
+          }
+
+          if (requiresSiteEngineerCheck(key)) {
+            payload.workflowEvents[key] = { ...merged };
+            delete payload.workflowEvents[key].isCompleted;
+            payload.workflowEvents[key].stageStatus =
+              payload.workflowEvents[key].stageStatus === "Complete"
+                ? "In Progress"
+                : payload.workflowEvents[key].stageStatus || "In Progress";
+            seStagesToSubmit.push(key);
           }
         }
       }
@@ -259,12 +281,25 @@ exports.updateJob = async (req, res) => {
     // Save to trigger pre-save hooks for systemState calculation
     const updated = await job.save();
 
+    for (const stageKey of seStagesToSubmit) {
+      await markModuleCompleteForReview(
+        updated._id,
+        stageKey,
+        `${actor} (Manual)`
+      );
+    }
+
+    const savedJob =
+      seStagesToSubmit.length > 0
+        ? await Job.findById(updated._id)
+        : updated;
+
     await processMilestoneBilling(
-      updated,
-      req.admin?.name || req.user?.name || "System"
+      savedJob,
+      actor
     );
 
-    const refreshed = await Job.findById(updated._id);
+    const refreshed = await Job.findById(savedJob._id);
 
     if (
       payload.manualProgressPercent !== undefined &&
@@ -318,6 +353,10 @@ exports.updateJobStage = async (req, res) => {
     if (!job.workflowEvents[stageName]) job.workflowEvents[stageName] = {};
 
     const updateData = { ...req.body };
+    const actor =
+      req.admin?.name || req.user?.name || updateData.completedBy || "System Admin";
+    const existingStage = { ...job.workflowEvents[stageName] };
+    const mergedStage = { ...existingStage, ...updateData };
 
     const willComplete =
       updateData.isCompleted === true ||
@@ -332,10 +371,43 @@ exports.updateJobStage = async (req, res) => {
         return res.status(400).json({ success: false, message: gate.message });
       }
 
+      const fieldCheck = validateStageManualFields(stageName, mergedStage);
+      if (!fieldCheck.ok) {
+        return res.status(400).json({ success: false, message: fieldCheck.message });
+      }
+
       if (requiresSiteEngineerCheck(stageName)) {
-        const actor =
-          req.admin?.name || req.user?.name || updateData.completedBy || "System Admin";
+        job.workflowEvents[stageName] = {
+          ...existingStage,
+          ...updateData,
+        };
+        delete job.workflowEvents[stageName].isCompleted;
+        job.workflowEvents[stageName].stageStatus =
+          job.workflowEvents[stageName].stageStatus === "Complete"
+            ? "In Progress"
+            : job.workflowEvents[stageName].stageStatus || "In Progress";
+
+        if (Array.isArray(updateData.subtasks)) {
+          job.workflowEvents[stageName] = syncStageFromSubtasks(
+            job.workflowEvents[stageName]
+          );
+          delete job.workflowEvents[stageName].isCompleted;
+          job.workflowEvents[stageName].stageStatus =
+            job.workflowEvents[stageName].stageStatus === "Complete"
+              ? "In Progress"
+              : job.workflowEvents[stageName].stageStatus || "In Progress";
+        }
+
+        job.markModified("workflowEvents");
+        await job.save();
+
         await markModuleCompleteForReview(id, stageName, `${actor} (Manual)`);
+
+        await processMilestoneBilling(
+          job,
+          actor
+        );
+
         const refreshed = await Job.findById(id);
         return res.status(200).json({
           success: true,

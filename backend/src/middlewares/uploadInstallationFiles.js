@@ -3,6 +3,8 @@ const path = require("path");
 const fs = require("fs");
 const { slugify } = require("transliteration");
 
+const { acceptInstallationFile } = require("../utils/uploadFileFilter");
+
 const storage = multer.diskStorage({
   destination(req, file, cb) {
     const uploadPath = path.join(__dirname, "../../uploads/installation");
@@ -21,22 +23,10 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = [
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "video/mp4",
-    "video/quicktime",
-    "video/webm",
-  ];
-  
-  if (allowedTypes.includes(file.mimetype)) {
+  if (acceptInstallationFile(file)) {
     cb(null, true);
   } else {
-    cb(new Error("Invalid file type. Only images and documents are allowed."), false);
+    cb(new Error("Invalid file type. Allowed: images, PDF, Word, or video."), false);
   }
 };
 

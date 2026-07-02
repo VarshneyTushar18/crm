@@ -3,6 +3,8 @@ const path = require("path");
 const fs = require("fs");
 const { slugify } = require("transliteration");
 
+const { isPdfFile } = require("../utils/uploadFileFilter");
+
 const storage = multer.diskStorage({
   destination(req, file, cb) {
     const uploadPath = path.join(__dirname, "../../uploads/drafting");
@@ -20,10 +22,7 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  const isPdf =
-    file.mimetype === "application/pdf" ||
-    file.originalname.toLowerCase().endsWith(".pdf");
-  if (isPdf) {
+  if (isPdfFile(file)) {
     cb(null, true);
   } else {
     cb(new Error("Only PDF files are allowed"), false);
@@ -33,5 +32,5 @@ const fileFilter = (req, file, cb) => {
 module.exports = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 20 * 1024 * 1024 },
+  limits: { fileSize: 300 * 1024 * 1024 },
 });

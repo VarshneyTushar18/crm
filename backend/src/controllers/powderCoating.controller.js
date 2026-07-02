@@ -1,7 +1,7 @@
 const Job = require("../models/appModels/Job");
 const { markModuleCompleteForReview } = require("../utils/moduleSiteEngineerGate");
+const { validateStageManualFields } = require("../utils/stageManualFields");
 const { notifyCustomer } = require("../services/notificationService");
-
 const getActor = (req) =>
   req.user?.name || req.user?.email || req.admin?.name || "System";
 
@@ -25,10 +25,17 @@ exports.markComplete = async (req, res) => {
     stage.stageStatus = "In Progress";
     stage.startActual = stage.startActual || new Date();
     stage.completionActual = new Date();
-    stage.batchRef = req.body?.batchRef || stage.batchRef || "";
+    stage.batchRef = String(req.body?.batchRef || stage.batchRef || "").trim();
+
+    const fieldCheck = validateStageManualFields("powderCoating", stage);
+    if (!fieldCheck.ok) {
+      return res.status(400).json({ success: false, message: fieldCheck.message });
+    }
+
+    job.markModified("workflowEvents");
+    await job.save();
 
     await markModuleCompleteForReview(job._id, "powderCoating", getActor(req));
-
     const refreshed = await Job.findById(job._id);
     if (refreshed?.customerId) {
       await notifyCustomer({

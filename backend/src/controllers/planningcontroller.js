@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const Planning = mongoose.models.Planning;
 const Job = mongoose.models.Job;
 const { markModuleCompleteForReview } = require("../utils/moduleSiteEngineerGate");
+const { buildMapsUrl } = require("../utils/travelEstimate");
 
 if (!Planning) throw new Error("Planning model not loaded");
 if (!Job) throw new Error("Job model not loaded");
@@ -11,6 +12,25 @@ const isPlanningStatusCompleted = (status) => {
   if (!status) return false;
   const normalized = String(status).trim().toLowerCase();
   return ["completed", "done"].includes(normalized);
+};
+
+const buildLocationLabel = (payload = {}) => {
+  const parts = [
+    payload.location,
+    payload.city,
+    payload.state,
+    payload.country,
+  ]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean);
+  return parts.join(", ");
+};
+
+const enrichPlanningLocation = (payload = {}) => {
+  const next = { ...payload };
+  const locationLabel = buildLocationLabel(next);
+  next.mapsUrl = buildMapsUrl(locationLabel || next.location || "");
+  return next;
 };
 
 // helper: when planning starts, move related job to Client Approval (Planning analog)
@@ -114,15 +134,21 @@ exports.create = async (req, res) => {
       });
     }
 
-    const created = await Planning.create({
-      jobId: payload.jobId,
-      task: payload.task,
-      start: payload.start,
-      end: payload.end,
-      workers: Number(payload.workers || 1),
-      hours: Number(payload.hours || 1),
-      status: payload.status || "Pending",
-    });
+    const created = await Planning.create(
+      enrichPlanningLocation({
+        jobId: payload.jobId,
+        task: payload.task,
+        start: payload.start,
+        end: payload.end,
+        workers: Number(payload.workers || 1),
+        hours: Number(payload.hours || 1),
+        status: payload.status || "Pending",
+        country: payload.country || "",
+        location: payload.location || "",
+        city: payload.city || "",
+        state: payload.state || "",
+      })
+    );
 
     // planning started => move job to Planning Lock
     await syncJobPlanningStage(payload.jobId, isPlanningStatusCompleted(payload.status));
@@ -154,7 +180,7 @@ exports.update = async (req, res) => {
       });
     }
 
-    const payload = { ...req.body };
+    const payload = enrichPlanningLocation({ ...req.body });
 
     if (payload.workers !== undefined) {
       payload.workers = Number(payload.workers);

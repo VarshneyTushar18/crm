@@ -3,6 +3,8 @@ const path = require("path");
 const fs = require("fs");
 const { slugify } = require("transliteration");
 
+const { acceptJobCommentFile } = require("../utils/uploadFileFilter");
+
 const storage = multer.diskStorage({
   destination(req, file, cb) {
     const uploadPath = path.join(__dirname, "../../uploads/job-comments");
@@ -21,19 +23,7 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = [
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "video/mp4",
-    "video/quicktime",
-    "video/webm",
-  ];
-
-  if (allowedTypes.includes(file.mimetype)) {
+  if (acceptJobCommentFile(file)) {
     cb(null, true);
   } else {
     cb(new Error("Invalid file type. Allowed: images, PDF, Word, video."), false);
