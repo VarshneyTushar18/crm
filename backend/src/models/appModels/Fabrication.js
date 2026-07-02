@@ -72,6 +72,25 @@ const fabricationSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    progressPercentage: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
+    progressUpdatedBy: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    progressUpdatedAt: {
+      type: Date,
+      default: null,
+    },
+    photoUrls: {
+      type: [String],
+      default: [],
+    },
     checklist: {
       type: fabricationChecklistSchema,
       default: () => ({}),

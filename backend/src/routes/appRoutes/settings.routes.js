@@ -81,4 +81,31 @@ router.post("/logo", uploadLogo, (req, res, next) => {
   next();
 }, updateBySettingKey);
 
+const { getLeadSources, setLeadSources } = require("../../utils/leadSources");
+
+router.get("/lead-sources", async (req, res) => {
+  try {
+    const sources = await getLeadSources();
+    return res.json({ success: true, result: sources });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.put("/lead-sources", async (req, res) => {
+  try {
+    if (req.user?.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Admin only" });
+    }
+    const sources = await setLeadSources(req.body?.sources || []);
+    return res.json({
+      success: true,
+      result: sources,
+      message: "Lead sources updated",
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

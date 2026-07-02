@@ -46,6 +46,11 @@ const QCSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    workflowStageKey: {
+      type: String,
+      enum: ["", "fabricationQc", "powderCoatingQc", "finishing"],
+      default: "",
+    },
   },
   { timestamps: true }
 );

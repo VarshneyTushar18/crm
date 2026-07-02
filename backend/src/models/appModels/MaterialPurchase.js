@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const MATERIAL_STATUS = [
   "Pending",
   "Ordered",
+  "Delayed",
   "Partially Received",
   "Received",
   "Cancelled",
@@ -65,6 +66,18 @@ const MaterialPurchaseSchema = new mongoose.Schema(
       type: String,
       default: "",
       trim: true,
+    },
+
+    supplierId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Supplier",
+      default: null,
+    },
+
+    purchaseOrderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "PurchaseOrder",
+      default: null,
     },
 
     expectedDelivery: {

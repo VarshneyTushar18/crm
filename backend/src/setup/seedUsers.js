@@ -5,6 +5,7 @@ const DEFAULT_PASSWORDS = {
   admin: "Admin@123",
   worker: "Worker@123",
   customer: "Customer@123",
+  siteEngineer: "SiteEngineer@123",
 };
 
 function formatDateToDDMMYYYY(date = new Date()) {
@@ -79,6 +80,20 @@ const DEFAULT_USERS = [
       department: "Planning",
       joiningDate: "20-04-2024",
       address: "Planning Office, Unit D",
+    },
+  },
+  {
+    role: "siteEngineer",
+    name: "Site Engineer",
+    email: "siteengineer@crm.com",
+    password: DEFAULT_PASSWORDS.siteEngineer,
+    employee: {
+      employeeId: "EMP200",
+      phone: "+910000000200",
+      designation: "Site Engineer",
+      department: "Planning",
+      joiningDate: "01-06-2024",
+      address: "Field Operations",
     },
   },
   {
@@ -248,9 +263,10 @@ async function seedDefaultUsers() {
   console.log("🌱 Default user seed complete.");
   console.log("");
   console.log("Login credentials:");
-  console.log("  Admin    → admin@crm.com / Admin@123");
-  console.log("  Employee → W-1001..W-1004 / Worker@123 (or worker email)");
-  console.log("  Customer → customer@crm.com / Customer@123");
+  console.log("  Admin         → admin@crm.com / Admin@123");
+  console.log("  Site Engineer → siteengineer@crm.com / SiteEngineer@123");
+  console.log("  Employee      → W-1001..W-1004 / Worker@123 (or worker email)");
+  console.log("  Customer      → customer@crm.com / Customer@123");
 }
 
 module.exports = {

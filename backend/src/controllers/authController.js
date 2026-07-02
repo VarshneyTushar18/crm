@@ -78,7 +78,10 @@ exports.login = async (req, res) => {
   try {
     const { role, identifier, password } = req.body;
     const roleInput = String(role || "").trim().toLowerCase();
-    const normalizedRole = roleInput === "employee" ? "worker" : roleInput;
+    let normalizedRole = roleInput === "employee" ? "worker" : roleInput;
+    if (["site engineer", "siteengineer", "site_engineer"].includes(normalizedRole)) {
+      normalizedRole = "siteEngineer";
+    }
     const normalizedIdentifier = String(identifier || "").trim();
 
     if (!normalizedRole || !normalizedIdentifier || !password) {
@@ -88,7 +91,7 @@ exports.login = async (req, res) => {
       });
     }
 
-    if (!["admin", "worker", "customer"].includes(normalizedRole)) {
+    if (!["admin", "worker", "customer", "siteEngineer"].includes(normalizedRole)) {
       return res.status(400).json({
         success: false,
         message: "Invalid role",

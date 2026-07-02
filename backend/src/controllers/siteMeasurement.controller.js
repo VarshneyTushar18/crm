@@ -2,6 +2,17 @@ const mongoose = require("mongoose");
 
 const SiteMeasurement = mongoose.models.SiteMeasurement;
 const Job = mongoose.models.Job;
+const Drafting = mongoose.models.Drafting;
+const Quote = mongoose.models.Quote;
+const { markModuleCompleteForReview } = require("../utils/moduleSiteEngineerGate");
+
+const assertPhotosForComplete = (photoUrls, isCompleting) => {
+  if (isCompleting && (!Array.isArray(photoUrls) || photoUrls.length === 0)) {
+    throw new Error(
+      "Upload at least one photo or document before completing site measurement"
+    );
+  }
+};
 
 if (!SiteMeasurement) throw new Error("SiteMeasurement model not loaded");
 if (!Job) throw new Error("Job model not loaded");
@@ -17,14 +28,48 @@ const syncJobStage = async (jobObjectId, isCompleted = false) => {
   if (!job.workflowEvents.siteMeasurement) job.workflowEvents.siteMeasurement = {};
 
   if (isCompleted && !job.workflowEvents.siteMeasurement.isCompleted) {
-    job.workflowEvents.siteMeasurement.isCompleted = true;
-    job.workflowEvents.siteMeasurement.completedAt = new Date();
-    job.workflowEvents.siteMeasurement.completedBy = "Site Measurement Module";
-    job.stage = "planning"; // Move to Planning
+    await markModuleCompleteForReview(
+      jobObjectId,
+      "siteMeasurement",
+      "Site Measurement Module"
+    );
+  } else if (!isCompleted) {
+    job.workflowEvents.siteMeasurement.stageStatus =
+      job.workflowEvents.siteMeasurement.stageStatus || "In Progress";
   }
 
   job.markModified("workflowEvents");
   await job.save();
+};
+
+// GET /api/measurement/list/:jobId
+exports.listByJob = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    if (!jobId) {
+      return res.status(400).json({
+        success: false,
+        result: [],
+        message: "jobId is required",
+      });
+    }
+
+    const result = await SiteMeasurement.find({ jobId })
+      .populate("jobId", "jobId customer site stage status")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      result,
+      message: "Site measurements fetched for job",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      result: [],
+      message: err.message,
+    });
+  }
 };
 
 // GET /api/measurement/list
@@ -110,6 +155,12 @@ exports.createMeasurement = async (req, res) => {
       });
     }
 
+    const photoUrls = Array.isArray(payload.photoUrls) ? payload.photoUrls : [];
+    assertPhotosForComplete(
+      photoUrls,
+      payload.status === "Completed"
+    );
+
     const created = await SiteMeasurement.create({
       jobId: payload.jobId,
       measuredBy: payload.measuredBy || "",
@@ -130,12 +181,20 @@ exports.createMeasurement = async (req, res) => {
       publicRisk: payload.publicRisk || "",
       whsHazards: payload.whsHazards || "",
       gpsLocation: payload.gpsLocation || "",
-      photoUrls: Array.isArray(payload.photoUrls) ? payload.photoUrls : [],
+      photoUrls,
       notes: payload.notes || "",
       measurementDate: payload.measurementDate
         ? new Date(payload.measurementDate)
         : new Date(),
-      status: payload.status || "Completed",
+      status: payload.status || "Pending",
+      startTime: payload.startTime ? new Date(payload.startTime) : null,
+      endTime: payload.endTime ? new Date(payload.endTime) : null,
+      totalHours: Number(payload.totalHours || 0),
+      checklist: Array.isArray(payload.checklist) ? payload.checklist : [],
+      signatureUrl: payload.signatureUrl || "",
+      signedAt: payload.signedAt ? new Date(payload.signedAt) : null,
+      signedBy: payload.signedBy || "",
+      isLocked: !!payload.isLocked,
     });
 
     await syncJobStage(payload.jobId, payload.status === "Completed");
@@ -167,6 +226,14 @@ exports.updateMeasurement = async (req, res) => {
       });
     }
 
+    if (existing.isLocked) {
+      return res.status(400).json({
+        success: false,
+        result: null,
+        message: "Site measurement is locked after signature and cannot be edited",
+      });
+    }
+
     const payload = { ...req.body };
 
     if (payload.height !== undefined) payload.height = Number(payload.height);
@@ -176,9 +243,26 @@ exports.updateMeasurement = async (req, res) => {
     if (payload.measurementDate) {
       payload.measurementDate = new Date(payload.measurementDate);
     }
+    if (payload.startTime) payload.startTime = new Date(payload.startTime);
+    if (payload.endTime) payload.endTime = new Date(payload.endTime);
+    if (payload.signedAt) payload.signedAt = new Date(payload.signedAt);
+
+    if (payload.signatureUrl && payload.status === "Completed") {
+      payload.isLocked = true;
+      payload.signedAt = payload.signedAt || new Date();
+    }
 
     if (payload.photoUrls && !Array.isArray(payload.photoUrls)) {
       payload.photoUrls = [];
+    }
+
+    const willComplete =
+      payload.status === "Completed" || existing.status === "Completed";
+    const mergedPhotos =
+      payload.photoUrls !== undefined ? payload.photoUrls : existing.photoUrls || [];
+
+    if (payload.status === "Completed") {
+      assertPhotosForComplete(mergedPhotos, true);
     }
 
     const updated = await SiteMeasurement.findByIdAndUpdate(
@@ -190,7 +274,10 @@ exports.updateMeasurement = async (req, res) => {
       }
     ).populate("jobId", "jobId customer site stage status");
 
-    await syncJobStage(updated?.jobId?._id || existing.jobId, payload.status === "Completed" || updated.status === "Completed");
+    await syncJobStage(
+      updated?.jobId?._id || existing.jobId,
+      payload.status === "Completed" || updated.status === "Completed"
+    );
 
     return res.status(200).json({
       success: true,
@@ -230,5 +317,28 @@ exports.deleteMeasurement = async (req, res) => {
       result: null,
       message: err.message,
     });
+  }
+};
+
+exports.uploadFiles = async (req, res) => {
+  try {
+    const measurement = await SiteMeasurement.findById(req.params.id);
+    if (!measurement) {
+      return res.status(404).json({ success: false, message: "Site measurement not found" });
+    }
+
+    const files = req.files || [];
+    const uploadedUrls = files.map((f) => `/uploads/site-measurement/${f.filename}`);
+
+    measurement.photoUrls = [...(measurement.photoUrls || []), ...uploadedUrls];
+    await measurement.save();
+
+    return res.json({
+      success: true,
+      result: measurement,
+      message: `${uploadedUrls.length} file(s) uploaded`,
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
   }
 };

@@ -55,6 +55,10 @@ const installationSchema = new mongoose.Schema(
             type: Number,
             default: 0,
         },
+        photoUrls: {
+            type: [String],
+            default: [],
+        },
     },
     { timestamps: true }
 );

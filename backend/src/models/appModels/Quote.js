@@ -53,7 +53,8 @@ const QuoteSchema = new mongoose.Schema(
     acceptanceAudit: {
       method: String,
       acceptedBy: String,
-      acceptedAt: Date
+      acceptedAt: Date,
+      signatureImage: String,
     },
 
     approvedAt: { type: Date, default: null },

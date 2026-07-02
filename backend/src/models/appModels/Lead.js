@@ -5,8 +5,31 @@ const LeadSchema = new mongoose.Schema(
     clientName: { type: String, required: true, trim: true },
     contactPerson: { type: String, trim: true },
     phone: { type: String, required: true, trim: true },
+    phones: [
+      {
+        label: { type: String, trim: true, default: "Primary" },
+        number: { type: String, trim: true, default: "" },
+        isPrimary: { type: Boolean, default: false },
+      },
+    ],
     email: { type: String, trim: true, lowercase: true },
-    siteAddress: { type: String, required: true, trim: true }, // Job Location (Suburb/Postcode)
+    siteAddress: { type: String, required: true, trim: true }, // Job Location (legacy + display)
+    addresses: [
+      {
+        type: {
+          type: String,
+          enum: ["Site", "Office", "Billing", "Other"],
+          default: "Site",
+        },
+        line1: { type: String, default: "", trim: true },
+        line2: { type: String, default: "", trim: true },
+        city: { type: String, default: "", trim: true },
+        state: { type: String, default: "", trim: true },
+        postcode: { type: String, default: "", trim: true },
+        country: { type: String, default: "", trim: true },
+        isPrimary: { type: Boolean, default: false },
+      },
+    ],
 
     category: { type: String, enum: ["Residential", "Commercial"], default: "Residential" },
 
@@ -17,8 +40,8 @@ const LeadSchema = new mongoose.Schema(
     leadSource: {
       type: String,
       required: true,
-      enum: ["Website", "Phone Call", "Social Media", "Google", "Manual Entry"],
       default: "Manual Entry",
+      trim: true,
     },
 
     notes: { type: String, trim: true },

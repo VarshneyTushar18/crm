@@ -7,6 +7,11 @@ const uploadInstallationFiles = require("../../middlewares/uploadInstallationFil
 router.get("/list/:jobId", controller.listByJob);
 router.post("/create", controller.create);
 router.patch("/update/:id", controller.update);
+router.post(
+    "/upload/:id",
+    uploadInstallationFiles.array("files", 20),
+    controller.uploadActivityFiles
+);
 router.delete("/delete/:id", controller.remove);
 
 router.get("/summary/:jobId", controller.getSummary);

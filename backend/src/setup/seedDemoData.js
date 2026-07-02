@@ -21,6 +21,8 @@ const Contact = require("../models/appModels/Contact");
 const Taxes = require("../models/appModels/Taxes");
 const PaymentMode = require("../models/appModels/PaymentMode");
 const Admin = require("../models/coreModels/Admin");
+const { linkJobToQuote } = require("../utils/linkJobQuote");
+const { buildDefaultWorkflowEvents } = require("../utils/workflowDefaults");
 
 const DEMO_MARKER_JOB_ID = "DEMO-J-001";
 
@@ -262,6 +264,10 @@ async function seedDemoData(options = {}) {
     { name: "Harbour Homes Pty Ltd", email: "harbour@demo.com", phone: "+61400111222", address: "45 Harbour Rd, Melbourne VIC", createdBy: admin._id },
   ]);
 
+  const jobEarlyWf = buildDefaultWorkflowEvents(2);
+  jobEarlyWf.siteMeasurement.scheduledDate = daysFromNow(1);
+  jobEarlyWf.siteMeasurement.expectedHours = 4;
+
   const jobEarly = await Job.create({
     jobId: DEMO_MARKER_JOB_ID,
     customer: "Riverside Residence",
@@ -271,15 +277,10 @@ async function seedDemoData(options = {}) {
     totalInvoiced: 0,
     totalPaid: 0,
     systemState: "Active",
+    workflowVersion: 3,
     leadId: leadNew._id,
     customerId: customerA._id,
-    workflowEvents: {
-      siteMeasurement: {
-        scheduledDate: daysFromNow(1),
-        expectedHours: 4,
-        isCompleted: false,
-      },
-    },
+    workflowEvents: jobEarlyWf,
   });
 
   const jobScheduling = await Job.create({
@@ -670,6 +671,36 @@ async function ensureCustomerPortalData() {
     }
   }
 
+  let quote = await Quote.findOne({ jobId: job._id });
+  if (!quote && job.leadId) {
+    quote = await Quote.findOne({ leadId: job.leadId }).sort({ createdAt: -1 });
+  }
+  if (!quote && job.leadId) {
+    const lead = await Lead.findById(job.leadId);
+    quote = await Quote.create({
+      leadId: job.leadId,
+      customerId: customer._id,
+      jobId: job._id,
+      customerName: lead?.clientName || customer.name,
+      contactPerson: lead?.contactPerson || customer.contactPerson,
+      phone: lead?.phone || customer.phone || "+910000000001",
+      email: lead?.email || customer.email,
+      siteAddress: lead?.siteAddress || job.site,
+      scope: "Supply and installation of balustrade as per approved design.",
+      inclusions: "Materials, fabrication, delivery, and installation.",
+      exclusions: "Civil works and scaffolding beyond standard scope.",
+      totalAmount: Number(job.lockedValue || 45000),
+      validUntil: daysFromNow(30),
+      status: "Accepted",
+      approvedAt: new Date(),
+      categoryCode: "Residential",
+      materialCode: "Aluminium",
+    });
+    await Job.updateOne({ _id: job._id }, { $set: { quoteId: quote._id } });
+  } else if (quote) {
+    await linkJobToQuote({ job, quoteId: quote._id, leadId: job.leadId });
+  }
+
   const year = new Date().getFullYear();
   const invoiceSpecs = [
     {
@@ -826,7 +857,7 @@ async function ensureCustomerPortalData() {
     });
   }
 
-  console.log("✅ Customer portal demo data ready (projects, invoices, payments, contacts)");
+  console.log("✅ Customer portal demo data ready (projects, invoices, payments, contacts, quotes)");
 }
 
 module.exports = { seedDemoData, clearDemoData, ensureCustomerPortalData, DEMO_MARKER_JOB_ID };

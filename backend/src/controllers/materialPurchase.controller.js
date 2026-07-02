@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const MaterialPurchase = mongoose.models.MaterialPurchase;
 const Job = mongoose.models.Job;
+const { markModuleCompleteForReview } = require("../utils/moduleSiteEngineerGate");
 
 if (!MaterialPurchase) throw new Error("MaterialPurchase model not loaded");
 if (!Job) throw new Error("Job model not loaded");
@@ -16,13 +17,12 @@ const syncJobMaterialStage = async (jobObjectId, isCompleted = false) => {
   if (!job.workflowEvents.materialPurchasing) job.workflowEvents.materialPurchasing = {};
 
   if (isCompleted && !job.workflowEvents.materialPurchasing.isCompleted) {
-    job.workflowEvents.materialPurchasing.isCompleted = true;
-    job.workflowEvents.materialPurchasing.completedAt = new Date();
-    job.workflowEvents.materialPurchasing.completedBy = "Material Purchase Module";
+    await markModuleCompleteForReview(
+      jobObjectId,
+      "materialPurchasing",
+      "Material Purchase Module"
+    );
   }
-
-  job.markModified("workflowEvents");
-  await job.save();
 };
 
 // GET /api/material-purchase/list/:jobId

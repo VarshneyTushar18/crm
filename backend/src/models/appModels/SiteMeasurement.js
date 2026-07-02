@@ -132,8 +132,24 @@ const SiteMeasurementSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["Pending", "Completed"],
-      default: "Completed",
+      default: "Pending",
     },
+
+    startTime: { type: Date, default: null },
+    endTime: { type: Date, default: null },
+    totalHours: { type: Number, default: 0, min: 0 },
+
+    checklist: [
+      {
+        item: { type: String, trim: true },
+        checked: { type: Boolean, default: false },
+      },
+    ],
+
+    signatureUrl: { type: String, default: "", trim: true },
+    signedAt: { type: Date, default: null },
+    signedBy: { type: String, default: "", trim: true },
+    isLocked: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

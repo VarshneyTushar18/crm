@@ -8,11 +8,93 @@ const User = mongoose.models.User;
 const bcrypt = require("bcryptjs");
 const { generate: uniqueId } = require('shortid');
 const sendMail = require("../controllers/middlewaresControllers/createAuthMiddleware/sendMail");
+const { linkJobToQuote } = require("../utils/linkJobQuote");
 
 if (!Lead) throw new Error("Lead model not loaded");
 if (!Job) throw new Error("Job model not loaded");
 if (!Customer) throw new Error("Customer model not loaded");
 if (!User) throw new Error("User model not loaded");
+
+const normalizeLeadPayload = (payload = {}) => {
+  const next = { ...payload };
+  const inputPhones = Array.isArray(next.phones) ? next.phones : [];
+
+  const phones = inputPhones
+    .map((p) => ({
+      label: String(p?.label || "Other").trim() || "Other",
+      number: String(p?.number || "").trim(),
+      isPrimary: Boolean(p?.isPrimary),
+    }))
+    .filter((p) => p.number);
+
+  if (!phones.length && next.phone) {
+    phones.push({
+      label: "Primary",
+      number: String(next.phone).trim(),
+      isPrimary: true,
+    });
+  }
+
+  if (phones.length && !phones.some((p) => p.isPrimary)) {
+    phones[0].isPrimary = true;
+  }
+
+  const primary = phones.find((p) => p.isPrimary) || phones[0];
+
+  next.phones = phones;
+  next.phone = primary?.number || String(next.phone || "").trim();
+
+  const formatAddressLine = (addr = {}) =>
+    [addr.line1, addr.line2, addr.city, addr.state, addr.postcode, addr.country]
+      .map((v) => String(v || "").trim())
+      .filter(Boolean)
+      .join(", ");
+
+  const inputAddresses = Array.isArray(next.addresses) ? next.addresses : [];
+  let addresses = inputAddresses
+    .map((a) => ({
+      type: String(a?.type || "Site").trim() || "Site",
+      line1: String(a?.line1 || "").trim(),
+      line2: String(a?.line2 || "").trim(),
+      city: String(a?.city || "").trim(),
+      state: String(a?.state || "").trim(),
+      postcode: String(a?.postcode || "").trim(),
+      country: String(a?.country || "").trim(),
+      isPrimary: Boolean(a?.isPrimary),
+    }))
+    .filter((a) => a.line1 || a.city || a.postcode);
+
+  if (!addresses.length && next.siteAddress) {
+    addresses.push({
+      type: "Site",
+      line1: String(next.siteAddress).trim(),
+      line2: "",
+      city: "",
+      state: "",
+      postcode: "",
+      country: "",
+      isPrimary: true,
+    });
+  }
+
+  if (addresses.length && !addresses.some((a) => a.isPrimary)) {
+    const siteIdx = addresses.findIndex((a) => a.type === "Site");
+    if (siteIdx >= 0) addresses[siteIdx].isPrimary = true;
+    else addresses[0].isPrimary = true;
+  }
+
+  const primarySite =
+    addresses.find((a) => a.type === "Site" && a.isPrimary) ||
+    addresses.find((a) => a.type === "Site") ||
+    addresses.find((a) => a.isPrimary) ||
+    addresses[0];
+
+  next.addresses = addresses;
+  next.siteAddress =
+    formatAddressLine(primarySite) || String(next.siteAddress || "").trim();
+
+  return next;
+};
 
 // ✅ GET /api/lead/read/:id
 exports.readLead = async (req, res) => {
@@ -73,7 +155,8 @@ exports.addInteraction = async (req, res) => {
 // ✅ POST /api/lead/create
 exports.createLead = async (req, res) => {
   try {
-    const lead = await Lead.create(req.body);
+    const payload = normalizeLeadPayload(req.body);
+    const lead = await Lead.create(payload);
     return res.json({ success: true, result: lead, message: "Lead created" });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
@@ -83,11 +166,32 @@ exports.createLead = async (req, res) => {
 // ✅ PATCH /api/lead/update/:id
 exports.updateLead = async (req, res) => {
   try {
-    const lead = await Lead.findByIdAndUpdate(req.params.id, req.body, {
+    const existing = await Lead.findById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ success: false, message: "Lead not found" });
+    }
+
+    const body = req.body || {};
+    const merged = normalizeLeadPayload({ ...existing.toObject(), ...body });
+
+    // Partial updates (e.g. status only) must not clear required phone/siteAddress.
+    const update = { ...body };
+    if (Object.prototype.hasOwnProperty.call(body, "phone") || Object.prototype.hasOwnProperty.call(body, "phones")) {
+      update.phone = merged.phone;
+      update.phones = merged.phones;
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(body, "siteAddress") ||
+      Object.prototype.hasOwnProperty.call(body, "addresses")
+    ) {
+      update.siteAddress = merged.siteAddress;
+      update.addresses = merged.addresses;
+    }
+
+    const lead = await Lead.findByIdAndUpdate(req.params.id, update, {
       new: true,
       runValidators: true,
     });
-    if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
     return res.json({ success: true, result: lead, message: "Lead updated" });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
@@ -223,6 +327,8 @@ exports.createJobFromLead = async (req, res) => {
 
       leadId: lead._id,
     });
+
+    await linkJobToQuote({ job, leadId: lead._id });
 
     // =========================
     // 4) Mark lead converted

@@ -2,6 +2,9 @@ const mongoose = require("mongoose");
 
 const Drafting = mongoose.models.Drafting;
 const Job = mongoose.models.Job;
+const { ensureReviewForDrafting } = require("../utils/siteEngineerReview");
+const { markModuleCompleteForReview } = require("../utils/moduleSiteEngineerGate");
+const { validateStageCompletion } = require("../utils/workflowGates");
 
 if (!Drafting) throw new Error("Drafting model not loaded");
 if (!Job) throw new Error("Job model not loaded");
@@ -18,17 +21,7 @@ const syncJobDraftingStage = async (jobObjectId, isIFCApproved = false) => {
   if (!job.workflowEvents.clientApproval) job.workflowEvents.clientApproval = {};
 
   if (isIFCApproved) {
-    if (!job.workflowEvents.drafting.isCompleted) {
-      job.workflowEvents.drafting.isCompleted = true;
-      job.workflowEvents.drafting.completedAt = new Date();
-      job.workflowEvents.drafting.completedBy = "Drafting Module (IFC)";
-    }
-    if (!job.workflowEvents.clientApproval.isCompleted) {
-      job.workflowEvents.clientApproval.isCompleted = true;
-      job.workflowEvents.clientApproval.approvalDate = new Date();
-      job.workflowEvents.clientApproval.completedAt = new Date();
-      job.workflowEvents.clientApproval.completedBy = "Drafting Module (IFC)";
-    }
+    await markModuleCompleteForReview(jobObjectId, "drafting", "Drafting Module (IFC)");
   } else {
     // Both pending
     job.workflowEvents.drafting.isCompleted = false;
@@ -147,6 +140,7 @@ exports.create = async (req, res) => {
     });
 
     await syncJobDraftingStage(payload.jobId, created.isIFCApproved || created.status === "IFC Approved");
+    await ensureReviewForDrafting(created);
 
     return res.status(201).json({
       success: true,
@@ -186,6 +180,20 @@ exports.update = async (req, res) => {
       runValidators: true,
     });
 
+    if (updated.isIFCApproved || updated.status === "IFC Approved") {
+      const job = await Job.findById(updated.jobId);
+      if (job) {
+        const gate = validateStageCompletion(job, "drafting");
+        if (!gate.ok) {
+          await Drafting.findByIdAndUpdate(req.params.id, {
+            isIFCApproved: false,
+            status: existing.status,
+          });
+          return res.status(400).json({ success: false, message: gate.message });
+        }
+      }
+    }
+
     await syncJobDraftingStage(updated.jobId, updated.isIFCApproved || updated.status === "IFC Approved");
 
     return res.status(200).json({
@@ -199,6 +207,31 @@ exports.update = async (req, res) => {
       result: null,
       message: err.message,
     });
+  }
+};
+
+exports.uploadPdf = async (req, res) => {
+  try {
+    const record = await Drafting.findById(req.params.id);
+    if (!record) {
+      return res.status(404).json({ success: false, message: "Drafting record not found" });
+    }
+
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ success: false, message: "No PDF file uploaded" });
+    }
+
+    record.fileUrl = `/uploads/drafting/${file.filename}`;
+    await record.save();
+
+    return res.json({
+      success: true,
+      result: record,
+      message: "PDF uploaded successfully",
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
   }
 };
 

@@ -4,15 +4,11 @@ const fs = require("fs");
 const { slugify } = require("transliteration");
 
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const entity = "installation";
-    const uploadPath = `src/public/uploads/${entity}`;
-    
-    // Ensure directory exists
+  destination(req, file, cb) {
+    const uploadPath = path.join(__dirname, "../../uploads/installation");
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }
-    
     cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
@@ -32,6 +28,9 @@ const fileFilter = (req, file, cb) => {
     "application/pdf",
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "video/mp4",
+    "video/quicktime",
+    "video/webm",
   ];
   
   if (allowedTypes.includes(file.mimetype)) {
@@ -45,7 +44,7 @@ const uploadInstallationFiles = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: 300 * 1024 * 1024,
   },
 });
 

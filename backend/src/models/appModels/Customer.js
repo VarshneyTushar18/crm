@@ -35,6 +35,44 @@ const CustomerSchema = new mongoose.Schema(
       enum: ["Active", "Completed"],
       default: "Active",
     },
+
+    addresses: [
+      {
+        type: {
+          type: String,
+          enum: ["Billing", "Site", "Office", "Other"],
+          default: "Site",
+        },
+        line1: { type: String, default: "" },
+        line2: { type: String, default: "" },
+        city: { type: String, default: "" },
+        state: { type: String, default: "" },
+        postcode: { type: String, default: "" },
+        country: { type: String, default: "" },
+        isPrimary: { type: Boolean, default: false },
+      },
+    ],
+    contacts: [
+      {
+        name: { type: String, default: "" },
+        role: { type: String, default: "" },
+        email: { type: String, default: "" },
+        phone: { type: String, default: "" },
+        mobile: { type: String, default: "" },
+        isPrimary: { type: Boolean, default: false },
+      },
+    ],
+    phones: [
+      {
+        number: { type: String, default: "" },
+        type: {
+          type: String,
+          enum: ["Mobile", "Office", "Other"],
+          default: "Mobile",
+        },
+        isPrimary: { type: Boolean, default: false },
+      },
+    ],
   },
   { timestamps: true }
 );

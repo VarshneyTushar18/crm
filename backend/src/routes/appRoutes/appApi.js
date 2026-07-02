@@ -27,26 +27,46 @@ router.use("/lead", asRouter(require("./lead.routes"), "lead.routes"));
 router.use("/quote", asRouter(require("./quote.routes"), "quote.routes"));
 router.use("/kanban", asRouter(require("./kanban.routes"), "kanban.routes"));
 router.use("/job", asRouter(require("./job.routes"), "job.routes"));
+router.use(
+  "/job-comments",
+  asRouter(require("./jobComment.routes"), "jobComment.routes")
+);
 
 // ===============================
 // PROJECT WORKFLOW MODULES
 // ===============================
 
 router.use("/planning", asRouter(require("./planning.routes"), "planning.routes"));
+router.use("/scheduling", asRouter(require("./scheduling.routes"), "scheduling.routes"));
 router.use(
   "/measurement",
   asRouter(require("./siteMeasurement.routes"), "siteMeasurement.routes")
 );
 router.use("/drafting", asRouter(require("./drafting.routes"), "drafting.routes"));
 router.use(
+  "/site-engineer",
+  asRouter(require("./siteEngineer.routes"), "siteEngineer.routes")
+);
+router.use(
   "/material-purchase",
   asRouter(require("./materialPurchase.routes"), "materialPurchase.routes")
 );
 router.use("/fabrication", asRouter(require("./fabrication.routes"), "fabrication.routes"));
+router.use(
+  "/powder-coating",
+  asRouter(require("./powderCoating.routes"), "powderCoating.routes")
+);
 router.use("/qc", asRouter(require("./qc.routes"), "qc.routes"));
 router.use("/installation", asRouter(require("./installation.routes"), "installation.routes"));
+router.use("/procurement", asRouter(require("./procurement.routes"), "procurement.routes"));
+router.use("/rfq", asRouter(require("./rfq.routes"), "rfq.routes"));
 router.use("/employee", asRouter(require("./employee.routes"), "employee.routes"));
 router.use("/attendance", asRouter(require("./attendance.routes"), "attendance.routes"));
+router.use("/leave", asRouter(require("./leave.routes"), "leave.routes"));
+router.use(
+  "/notifications",
+  asRouter(require("./notification.routes"), "notification.routes")
+);
 
 // ===============================
 // USERS
@@ -65,6 +85,10 @@ router.use("/settings", asRouter(require("./settings.routes"), "settings.routes"
 // ===============================
 
 router.use("/customer", asRouter(require("./customer.routes"), "customer.routes"));
+router.use(
+  "/dashboard",
+  asRouter(require("./dashboard.routes"), "dashboard.routes")
+);
 router.use("/contact", require("./contact.routes"));
 
 // ===============================

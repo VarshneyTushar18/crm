@@ -58,6 +58,8 @@ mongoose.connection.once("open", async () => {
     await seedDefaultUsers();
     await seedDemoData();
     await ensureCustomerPortalData();
+    const { ensureDefaultLeadSources } = require("./utils/leadSources");
+    await ensureDefaultLeadSources();
   } catch (err) {
     console.error("⚠️ Seed failed:", err.message);
   }

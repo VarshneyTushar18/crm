@@ -2,30 +2,61 @@ const mongoose = require("mongoose");
 
 const Qc = require("../models/appModels/Qc");
 const Job = require("../models/appModels/Job");
+const { markModuleCompleteForReview } = require("../utils/moduleSiteEngineerGate");
+const { notifyCustomer } = require("../services/notificationService");
 
 if (!Qc) throw new Error("Qc model not loaded");
 if (!Job) throw new Error("Job model not loaded");
 
-const syncJobQcStage = async (jobObjectId, isCompleted = false) => {
-  if (!jobObjectId) return;
-
-  const job = await Job.findById(jobObjectId);
-  if (!job) return;
-
-  if (!job.workflowEvents) job.workflowEvents = {};
-  if (!job.workflowEvents.finishing) job.workflowEvents.finishing = {};
-
-  if (isCompleted && !job.workflowEvents.finishing.isCompleted) {
-    job.workflowEvents.finishing.isCompleted = true;
-    job.workflowEvents.finishing.completedAt = new Date();
-    job.workflowEvents.finishing.completedBy = "Quality Control Module";
-  }
-
-  job.markModified("workflowEvents");
-  await job.save();
+const QC_STAGE_MAP = {
+  "Fabrication QC": "fabricationQc",
+  fabricationQc: "fabricationQc",
+  "Powder Coating QC": "powderCoatingQc",
+  powderCoatingQc: "powderCoatingQc",
 };
 
-// GET /api/qc/list/:jobId
+const resolveStageKey = (item) => {
+  if (item.workflowStageKey) return item.workflowStageKey;
+  return QC_STAGE_MAP[item.inspectionType] || "finishing";
+};
+
+const maybeCompleteQcStage = async (jobId, stageKey) => {
+  const items = await Qc.find({ jobId });
+  const stageItems = items.filter((item) => resolveStageKey(item) === stageKey);
+  if (!stageItems.length) return;
+
+  const allPass = stageItems.every((item) => item.status === "Pass");
+  if (!allPass) return;
+
+  const job = await Job.findById(jobId);
+  if (!job?.workflowEvents?.[stageKey]) return;
+  if (job.workflowEvents[stageKey].isCompleted) return;
+
+  await markModuleCompleteForReview(jobId, stageKey, "Quality Control Module");
+
+  const refreshed = await Job.findById(jobId);
+  if (refreshed?.customerId) {
+    const labels = {
+      fabricationQc: "Fabrication quality check",
+      powderCoatingQc: "Powder coating quality check",
+      finishing: "Quality check",
+    };
+    await notifyCustomer({
+      customerId: refreshed.customerId,
+      job: refreshed,
+      title: `${labels[stageKey] || "QC"} passed`,
+      body: `${labels[stageKey] || "Quality check"} passed for project ${refreshed.jobId}.`,
+    });
+  }
+};
+
+const syncJobQcStage = async (jobObjectId) => {
+  if (!jobObjectId) return;
+  await maybeCompleteQcStage(jobObjectId, "fabricationQc");
+  await maybeCompleteQcStage(jobObjectId, "powderCoatingQc");
+  await maybeCompleteQcStage(jobObjectId, "finishing");
+};
+
 exports.listByJob = async (req, res) => {
   try {
     const { jobId } = req.params;
@@ -54,7 +85,6 @@ exports.listByJob = async (req, res) => {
   }
 };
 
-// GET /api/qc/read/:id
 exports.read = async (req, res) => {
   try {
     const result = await Qc.findById(req.params.id);
@@ -81,7 +111,6 @@ exports.read = async (req, res) => {
   }
 };
 
-// POST /api/qc/create
 exports.create = async (req, res) => {
   try {
     const payload = req.body;
@@ -111,17 +140,25 @@ exports.create = async (req, res) => {
       });
     }
 
+    const workflowStageKey =
+      payload.workflowStageKey ||
+      QC_STAGE_MAP[payload.inspectionType] ||
+      "";
+
     const created = await Qc.create({
       jobId: payload.jobId,
       itemName: payload.itemName,
       inspectionType: payload.inspectionType || "",
+      workflowStageKey,
       checkedBy: payload.checkedBy || "",
       checkedDate: payload.checkedDate || "",
       status: payload.status || "Pending",
       remarks: payload.remarks || "",
     });
 
-    await syncJobQcStage(payload.jobId, payload.status === "Approved" || payload.status === "Completed");
+    if (created.status === "Pass") {
+      await syncJobQcStage(payload.jobId);
+    }
 
     return res.status(201).json({
       success: true,
@@ -137,7 +174,6 @@ exports.create = async (req, res) => {
   }
 };
 
-// PATCH /api/qc/update/:id
 exports.update = async (req, res) => {
   try {
     const existing = await Qc.findById(req.params.id);
@@ -155,7 +191,9 @@ exports.update = async (req, res) => {
       runValidators: true,
     });
 
-    await syncJobQcStage(updated.jobId, req.body.status === "Approved" || updated.status === "Approved" || req.body.status === "Completed" || updated.status === "Completed");
+    if (updated.status === "Pass") {
+      await syncJobQcStage(updated.jobId);
+    }
 
     return res.status(200).json({
       success: true,
@@ -171,7 +209,6 @@ exports.update = async (req, res) => {
   }
 };
 
-// DELETE /api/qc/delete/:id
 exports.delete = async (req, res) => {
   try {
     const deleted = await Qc.findByIdAndDelete(req.params.id);

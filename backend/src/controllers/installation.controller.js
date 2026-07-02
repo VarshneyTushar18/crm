@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Installation = require("../models/appModels/Installation");
 const InstallationSummary = require("../models/appModels/InstallationSummary");
 const Job = require("../models/appModels/Job");
+const { markModuleCompleteForReview } = require("../utils/moduleSiteEngineerGate");
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
@@ -19,7 +20,7 @@ const toDateOrNull = (value) => {
 const mapFile = (file) => ({
     originalName: file.originalname || "",
     filename: file.filename || "",
-    path: file.path || "",
+    path: file.filename ? `/uploads/installation/${file.filename}` : file.path || "",
     mimetype: file.mimetype || "",
     size: file.size || 0,
 });
@@ -132,6 +133,14 @@ exports.update = async (req, res) => {
             });
         }
 
+        const existing = await Installation.findById(id);
+        if (!existing) {
+            return res.status(404).json({
+                success: false,
+                message: "Installation activity not found",
+            });
+        }
+
         const payload = {
             ...(req.body.activityName !== undefined && {
                 activityName: String(req.body.activityName || "").trim(),
@@ -166,6 +175,26 @@ exports.update = async (req, res) => {
                 actualHours: toNumber(req.body.actualHours),
             }),
         };
+
+        const nextStatus = payload.status !== undefined ? payload.status : existing.status;
+        const photoUrls =
+            req.body.photoUrls !== undefined
+                ? Array.isArray(req.body.photoUrls)
+                    ? req.body.photoUrls
+                    : []
+                : existing.photoUrls || [];
+
+        if (nextStatus === "Completed" && photoUrls.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Upload at least one photo before marking this installation activity complete",
+            });
+        }
+
+        if (req.body.photoUrls !== undefined) {
+            payload.photoUrls = photoUrls;
+        }
 
         const updated = await Installation.findByIdAndUpdate(id, payload, {
             new: true,
@@ -361,6 +390,17 @@ exports.markComplete = async (req, res) => {
             });
         }
 
+        const missingPhotos = items.some(
+            (item) => !Array.isArray(item.photoUrls) || item.photoUrls.length === 0
+        );
+        if (missingPhotos) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Each installation activity must have at least one uploaded photo before confirmation",
+            });
+        }
+
         const summary = await InstallationSummary.findOneAndUpdate(
             { jobId },
             {
@@ -372,18 +412,12 @@ exports.markComplete = async (req, res) => {
             { new: true, upsert: true }
         );
 
-        await Job.findByIdAndUpdate(jobId, {
-            $set: {
-                "workflowEvents.installation.isCompleted": true,
-                "workflowEvents.installation.completedAt": new Date(),
-                "workflowEvents.installation.completedBy": "Installation Module",
-            },
-        });
+        await markModuleCompleteForReview(jobId, "installation", "Installation Module");
 
         return res.status(200).json({
             success: true,
             result: summary,
-            message: "Installation completion confirmed successfully",
+            message: "Installation completion confirmed — awaiting site engineer review",
         });
     } catch (error) {
         console.error("Installation markComplete error:", error);
@@ -488,22 +522,13 @@ exports.finalize = async (req, res) => {
             }
         );
 
-        await Job.findByIdAndUpdate(jobId, {
-            stage: "Closure",
-            status: "Completed",
-            $set: {
-                "workflowEvents.installation.isCompleted": true,
-                "workflowEvents.jobCompletion.isCompleted": true,
-                "workflowEvents.jobCompletion.completedAt": new Date(),
-                "workflowEvents.jobCompletion.completedBy": "Installation Module",
-                "workflowEvents.jobCompletion.completionDate": toDateOrNull(completionDate),
-            },
-        });
+        await markModuleCompleteForReview(jobId, "installation", "Installation Module");
+        await markModuleCompleteForReview(jobId, "jobCompletion", "Installation Module");
 
         return res.status(200).json({
             success: true,
             result: summary,
-            message: "Job finalized and moved to Closure successfully",
+            message: "Job finalized — awaiting site engineer review",
         });
     } catch (error) {
         console.error("Installation finalize error:", error);
@@ -511,6 +536,44 @@ exports.finalize = async (req, res) => {
             success: false,
             message: "Failed to finalize job completion",
             error: error.message,
+        });
+    }
+};
+
+exports.uploadActivityFiles = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!isValidObjectId(id)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid installation item id",
+            });
+        }
+
+        const item = await Installation.findById(id);
+        if (!item) {
+            return res.status(404).json({
+                success: false,
+                message: "Installation activity not found",
+            });
+        }
+
+        const files = req.files || [];
+        const uploadedUrls = files.map((f) => `/uploads/installation/${f.filename}`);
+
+        item.photoUrls = [...(item.photoUrls || []), ...uploadedUrls];
+        await item.save();
+
+        return res.status(200).json({
+            success: true,
+            result: item,
+            message: `${uploadedUrls.length} file(s) uploaded`,
+        });
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message || "Upload failed",
         });
     }
 };

@@ -1,17 +1,55 @@
 const mongoose = require("mongoose");
+const { getAllWorkflowStageKeys } = require("../../utils/workflowDefaults");
 
 const SYSTEM_STATES = ["New", "Active", "Completed", "Closed"];
+
+const SubtaskSchema = new mongoose.Schema(
+  {
+    title: { type: String, required: true, trim: true },
+    isCompleted: { type: Boolean, default: false },
+    completedAt: { type: Date, default: null },
+  },
+  { _id: true }
+);
+
+const stageMeta = () => ({
+  stageStatus: {
+    type: String,
+    enum: ["Pending", "In Progress", "Complete", "Awaiting Site Engineer"],
+    default: "Pending",
+  },
+  subtasks: { type: [SubtaskSchema], default: [] },
+  isCompleted: { type: Boolean, default: false },
+  completedBy: String,
+  completedAt: Date,
+  moduleWorkComplete: { type: Boolean, default: false },
+  siteEngineerStatus: {
+    type: String,
+    enum: ["NotRequired", "Pending", "Approved", "Rejected"],
+    default: "NotRequired",
+  },
+  siteEngineerCheckedBy: String,
+  siteEngineerCheckedAt: Date,
+  siteEngineerComments: String,
+});
 
 const JobSchema = new mongoose.Schema(
   {
     jobId: { type: String, required: true, unique: true, index: true, trim: true },
     customer: { type: String, default: "", trim: true },
     site: { type: String, default: "", trim: true },
+    siteId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Site",
+      default: null,
+    },
     removed: {
       type: Boolean,
       default: false,
     },
     stage: { type: String, default: "Backlog" },
+
+    workflowVersion: { type: Number, default: 3 },
 
     // Financial Inheritance
     lockedValue: { type: Number, default: 0 },
@@ -32,8 +70,15 @@ const JobSchema = new mongoose.Schema(
     // Retention tracking
     retentionPercentage: { type: Number, default: 0, min: 0, max: 100 },
 
+    billingMilestones: {
+      triggered: { type: [Number], default: [] },
+    },
+
     // System Calculated State
     systemState: { type: String, enum: SYSTEM_STATES, default: "New" },
+
+    // Optional manual override (20/40/60/80/100); null = auto from workflow
+    manualProgressPercent: { type: Number, default: null, min: 0, max: 100 },
 
     // System Calculated / Manual Conditions
     conditions: {
@@ -46,83 +91,101 @@ const JobSchema = new mongoose.Schema(
     // Embedded 8 Workflow Stages
     workflowEvents: {
       siteMeasurement: {
+        ...stageMeta(),
         scheduledDate: Date,
         expectedHours: Number,
         actualHours: Number,
-        isCompleted: { type: Boolean, default: false },
-        completedBy: String,
-        completedAt: Date,
       },
       drafting: {
+        ...stageMeta(),
         startExpected: Date,
         startActual: Date,
         completionExpected: Date,
         completionActual: Date,
         documentUrl: String,
-        isCompleted: { type: Boolean, default: false },
-        completedBy: String,
-        completedAt: Date,
       },
       planning: {
+        ...stageMeta(),
         approvalDate: Date,
         confirmationRecord: String,
         attachmentUrl: String,
-        isCompleted: { type: Boolean, default: false },
-        completedBy: String,
-        completedAt: Date,
+      },
+      scheduling: {
+        ...stageMeta(),
+        scheduledStart: Date,
+        scheduledEnd: Date,
+        totalPlannedHours: Number,
+        assignedRoles: [String],
       },
       clientApproval: {
+        ...stageMeta(),
         approvalDate: Date,
         confirmationRecord: String,
         attachmentUrl: String,
-        isCompleted: { type: Boolean, default: false },
-        completedBy: String,
-        completedAt: Date,
+      },
+      siteEngineerApproval: {
+        ...stageMeta(),
+        approvalDate: Date,
+        approvedBy: String,
+        lastRejectedAt: Date,
+        revisionCount: { type: Number, default: 0 },
       },
       materialPurchasing: {
+        ...stageMeta(),
         requestDate: Date,
         supplierRef: String,
-        isCompleted: { type: Boolean, default: false },
-        completedBy: String,
-        completedAt: Date,
+        selectedSupplierId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Supplier",
+          default: null,
+        },
+        selectedQuotationRef: { type: String, default: "" },
       },
       fabrication: {
+        ...stageMeta(),
         startExpectedHours: Number,
         startActualHours: Number,
         completionExpectedHours: Number,
         completionActualHours: Number,
         jobCards: String,
-        isCompleted: { type: Boolean, default: false },
-        completedBy: String,
-        completedAt: Date,
+      },
+      fabricationQc: {
+        ...stageMeta(),
+        approvalDate: Date,
+        checkedBy: String,
+      },
+      powderCoating: {
+        ...stageMeta(),
+        startActual: Date,
+        completionActual: Date,
+        batchRef: String,
+      },
+      powderCoatingQc: {
+        ...stageMeta(),
+        approvalDate: Date,
+        checkedBy: String,
       },
       finishing: {
+        ...stageMeta(),
         startExpected: Date,
         startActual: Date,
         completionExpected: Date,
         completionActual: Date,
         qualityCheckIndicator: String,
-        isCompleted: { type: Boolean, default: false },
-        completedBy: String,
-        completedAt: Date,
       },
       installation: {
+        ...stageMeta(),
         scheduledDate: Date,
         expectedHours: Number,
         actualHours: Number,
         installer: String,
-        isCompleted: { type: Boolean, default: false },
-        completedBy: String,
-        completedAt: Date,
       },
       jobCompletion: {
+        ...stageMeta(),
         signatureCapture: String,
         completionDate: Date,
         pictures: [String],
         documents: [String],
-        isCompleted: { type: Boolean, default: false },
-        completedBy: String,
-        completedAt: Date,
       },
     },
 
@@ -163,17 +226,7 @@ JobSchema.pre("save", async function (next) {
   }
 
   let anyStarted = false;
-  const stages = [
-    "siteMeasurement",
-    "planning",
-    "drafting",
-    "clientApproval",
-    "materialPurchasing",
-    "fabrication",
-    "finishing",
-    "installation",
-    "jobCompletion",
-  ];
+  const stages = getAllWorkflowStageKeys();
 
   for (const s of stages) {
     if (wf[s]) {
@@ -183,7 +236,8 @@ JobSchema.pre("save", async function (next) {
         wf[s].startActual ||
         wf[s].approvalDate ||
         wf[s].requestDate ||
-        wf[s].scheduledDate
+        wf[s].scheduledDate ||
+        wf[s].scheduledStart
       ) {
         anyStarted = true;
         break;

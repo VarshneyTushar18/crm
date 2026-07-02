@@ -429,7 +429,7 @@ exports.deleteQuote = async (req, res) => {
 exports.approveQuoteAndCreateJob = async (req, res) => {
   try {
     const quoteId = req.params.id;
-    const { method, acceptedBy } = req.body;
+    const { method, acceptedBy, signatureImage } = req.body;
 
     const quote = await Quote.findById(quoteId);
     if (!quote) {
@@ -510,6 +510,8 @@ exports.approveQuoteAndCreateJob = async (req, res) => {
       lockedValue: Number(quote.totalAmount || 0),
       leadId: quote.leadId || null,
       quoteId: quote._id,
+      stage: "Site Measurement",
+      workflowEvents: require("../utils/workflowDefaults").buildDefaultWorkflowEvents(),
     });
 
     quote.status = "Accepted";
@@ -518,6 +520,7 @@ exports.approveQuoteAndCreateJob = async (req, res) => {
       method,
       acceptedBy,
       acceptedAt: new Date(),
+      signatureImage: signatureImage || "",
     };
     quote.customerId = customer._id;
     quote.jobId = job._id;

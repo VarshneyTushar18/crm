@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const Planning = mongoose.models.Planning;
 const Job = mongoose.models.Job;
+const { markModuleCompleteForReview } = require("../utils/moduleSiteEngineerGate");
 
 if (!Planning) throw new Error("Planning model not loaded");
 if (!Job) throw new Error("Job model not loaded");
@@ -23,14 +24,8 @@ const syncJobPlanningStage = async (jobObjectId, isCompleted = false) => {
   if (!job.workflowEvents.planning) job.workflowEvents.planning = {};
 
   if (isCompleted && !job.workflowEvents.planning.isCompleted) {
-    job.workflowEvents.planning.isCompleted = true;
-    job.workflowEvents.planning.approvalDate = new Date();
-    job.workflowEvents.planning.completedAt = new Date();
-    job.workflowEvents.planning.completedBy = "Planning Module";
+    await markModuleCompleteForReview(jobObjectId, "planning", "Planning Module");
   }
-
-  job.markModified("workflowEvents");
-  await job.save();
 };
 
 // GET /api/planning/list/:jobId
