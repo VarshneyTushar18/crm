@@ -42,6 +42,28 @@ export const customerGetProjectById = async (id) => {
   return res.data?.result;
 };
 
+// ================= QUOTES =================
+export const customerGetQuotes = async () => {
+  const res = await axios.get(`${API_BASE}/customer/quotes`, {
+    headers: authHeaders(),
+  });
+  return res.data?.result || [];
+};
+
+export const customerGetQuoteById = async (id) => {
+  const res = await axios.get(`${API_BASE}/customer/quotes/${id}`, {
+    headers: authHeaders(),
+  });
+  return res.data?.result;
+};
+
+export const customerGetDocuments = async () => {
+  const res = await axios.get(`${API_BASE}/customer/documents`, {
+    headers: authHeaders(),
+  });
+  return res.data?.result || [];
+};
+
 // ================= PAYMENTS =================
 export const customerGetPaymentSummary = async () => {
   const res = await axios.get(`${API_BASE}/customer/payments/summary`, {
@@ -56,6 +78,13 @@ export const customerGetInvoices = async () => {
     headers: authHeaders(),
   });
   return res.data?.result || [];
+};
+
+export const customerGetInvoiceById = async (id) => {
+  const res = await axios.get(`${API_BASE}/customer/invoices/${id}`, {
+    headers: authHeaders(),
+  });
+  return res.data?.result;
 };
 
 export const customerNotifyPayment = async (id, data) => {

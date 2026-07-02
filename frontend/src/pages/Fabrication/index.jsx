@@ -11,7 +11,6 @@ import {
   InputNumber,
   DatePicker,
   Space,
-  Popconfirm,
   message,
   Empty,
   Card,
@@ -23,17 +22,34 @@ import {
   Checkbox,
   Progress,
   Tooltip,
+  Tabs,
+  Timeline,
+  Grid,
+  Dropdown,
+  Upload,
 } from "antd";
+import {
+  MoreOutlined,
+  EditOutlined,
+  ClockCircleOutlined,
+  DeleteOutlined,
+  RiseOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import dayjs from "dayjs";
 import { useJob } from "../../context/JobContext";
 import { getJobs, updateJob } from "../Jobs/jobApi";
 import {
   getFabricationItems,
+  getFabricationHistory,
   createFabricationItem,
   updateFabricationItem,
+  updateFabricationProgress,
   deleteFabricationItem,
+  uploadFabricationFiles,
 } from "./fabricationApi";
+import SendForSiteEngineerButton from "@/components/SendForSiteEngineerButton";
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -103,29 +119,63 @@ function sumHours(hoursLog = []) {
   );
 }
 
+function getUserRole() {
+  try {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    return user?.role || localStorage.getItem("role") || "admin";
+  } catch {
+    return localStorage.getItem("role") || "admin";
+  }
+}
+
+function getDrawingProgress(item = {}) {
+  const pct = Number(item.progressPercentage || 0);
+  if (pct > 0) return pct;
+  if (item.status === "Completed") return 100;
+  return 0;
+}
+
+function calcOverallFromItems(items = []) {
+  if (!items.length) return 0;
+  const total = items.reduce((sum, item) => sum + getDrawingProgress(item), 0);
+  return Math.round(total / items.length);
+}
+
 export default function Fabrication() {
   const navigate = useNavigate();
   const location = useLocation();
   const { activeJobId, setActiveJobId } = useJob();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+  const userRole = getUserRole();
+  const isAdmin = userRole === "admin";
+  const canUpdateProgress = ["admin", "worker"].includes(userRole);
 
   const [jobs, setJobs] = useState([]);
   const [jobData, setJobData] = useState(null);
 
   const [items, setItems] = useState([]);
+  const [overallProgress, setOverallProgress] = useState(0);
+  const [history, setHistory] = useState([]);
   const [draftingItems, setDraftingItems] = useState([]);
   const [ifcApproved, setIfcApproved] = useState(false);
 
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [loadingItems, setLoadingItems] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [activeTab, setActiveTab] = useState("drawings");
 
   const [open, setOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [hoursModalOpen, setHoursModalOpen] = useState(false);
   const [selectedHoursItem, setSelectedHoursItem] = useState(null);
+  const [progressModalOpen, setProgressModalOpen] = useState(false);
+  const [selectedProgressItem, setSelectedProgressItem] = useState(null);
 
   const [form] = Form.useForm();
   const [hoursForm] = Form.useForm();
+  const [progressForm] = Form.useForm();
 
   const queryJobId = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -227,20 +277,25 @@ export default function Fabrication() {
   const fetchItems = async (resolvedJobId) => {
     if (!resolvedJobId) {
       setItems([]);
+      setOverallProgress(0);
       return;
     }
 
     setLoadingItems(true);
     try {
       const data = await getFabricationItems(resolvedJobId);
-      const normalized = Array.isArray(data)
-        ? data.map((item) => ({
+      const normalized = Array.isArray(data?.items)
+        ? data.items.map((item) => ({
             ...item,
+            progressPercentage: Number(item.progressPercentage || 0),
             checklist: normalizeChecklist(item.checklist),
             hoursLog: Array.isArray(item.hoursLog) ? item.hoursLog : [],
           }))
         : [];
       setItems(normalized);
+      setOverallProgress(
+        Number(data?.overallProgress || 0) || calcOverallFromItems(normalized)
+      );
     } catch (err) {
       message.error(
         err?.response?.data?.message ||
@@ -248,8 +303,31 @@ export default function Fabrication() {
           "Failed to fetch fabrication items"
       );
       setItems([]);
+      setOverallProgress(0);
     } finally {
       setLoadingItems(false);
+    }
+  };
+
+  const fetchHistory = async (resolvedJobId) => {
+    if (!resolvedJobId) {
+      setHistory([]);
+      return;
+    }
+
+    setLoadingHistory(true);
+    try {
+      const logs = await getFabricationHistory(resolvedJobId);
+      setHistory(Array.isArray(logs) ? logs : []);
+    } catch (err) {
+      message.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to fetch fabrication history"
+      );
+      setHistory([]);
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
@@ -327,7 +405,7 @@ export default function Fabrication() {
         return;
       }
 
-      await Promise.all([fetchItems(jobId), fetchDraftingStatus(jobId)]);
+      await Promise.all([fetchItems(jobId), fetchDraftingStatus(jobId), fetchHistory(jobId)]);
     };
 
     init();
@@ -369,6 +447,66 @@ export default function Fabrication() {
     setHoursModalOpen(false);
     setSelectedHoursItem(null);
     hoursForm.resetFields();
+  };
+
+  const resetProgressModal = () => {
+    setProgressModalOpen(false);
+    setSelectedProgressItem(null);
+    progressForm.resetFields();
+  };
+
+  const openProgressModal = (record) => {
+    if (!canUpdateProgress) {
+      message.warning("You do not have permission to update progress");
+      return;
+    }
+    setSelectedProgressItem(record);
+    progressForm.setFieldsValue({
+      progressPercentage: Number(record.progressPercentage || 0),
+      remarks: "",
+    });
+    setProgressModalOpen(true);
+  };
+
+  const onUpdateProgress = async (values) => {
+    if (!selectedProgressItem?._id) return;
+
+    try {
+      const res = await updateFabricationProgress(selectedProgressItem._id, {
+        progressPercentage: Number(values.progressPercentage || 0),
+        remarks: values.remarks || "",
+      });
+
+      setOverallProgress(Number(res?.overallProgress || 0));
+
+      if (res?.timelineUpdated) {
+        message.success("Progress saved. Fabrication stage auto-completed on timeline.");
+        if (jobData) {
+          const updatedJobData = {
+            ...jobData,
+            workflowEvents: {
+              ...jobData.workflowEvents,
+              fabrication: {
+                ...(jobData.workflowEvents?.fabrication || {}),
+                isCompleted: true,
+                stageStatus: "Complete",
+                completedBy: "Fabrication Module (Auto)",
+              },
+            },
+          };
+          setCurrentJobContext(updatedJobData);
+        }
+      } else {
+        message.success("Fabrication progress updated");
+      }
+
+      await Promise.all([fetchItems(jobId), fetchHistory(jobId)]);
+      resetProgressModal();
+    } catch (err) {
+      message.error(
+        err?.response?.data?.message || err?.message || "Failed to update progress"
+      );
+    }
   };
 
   const openCreateModal = () => {
@@ -479,7 +617,7 @@ export default function Fabrication() {
       }
 
       await fetchJobs();
-      await Promise.all([fetchItems(jobId), fetchDraftingStatus(jobId)]);
+      await Promise.all([fetchItems(jobId), fetchDraftingStatus(jobId), fetchHistory(jobId)]);
       resetModal();
     } catch (err) {
       message.error(
@@ -522,6 +660,11 @@ export default function Fabrication() {
   };
 
   const updateStatus = async (record, newStatus) => {
+    if (!isAdmin) {
+      message.warning("Only admin can manually override fabrication status");
+      return;
+    }
+
     const oldStatus = record.status;
 
     if (newStatus === "Completed") {
@@ -542,8 +685,13 @@ export default function Fabrication() {
     );
 
     try {
-      await updateFabricationItem(record._id, { status: newStatus });
-      await fetchItems(jobId);
+      const payload = { status: newStatus };
+      if (newStatus === "Completed") {
+        payload.progressPercentage = 100;
+      }
+
+      await updateFabricationItem(record._id, payload);
+      await Promise.all([fetchItems(jobId), fetchHistory(jobId)]);
     } catch (err) {
       message.error(
         err?.response?.data?.message || err?.message || "Status update failed"
@@ -652,107 +800,222 @@ export default function Fabrication() {
     }
   };
 
+  const getActionMenuItems = (record) => {
+    const items = [];
+
+    if (canUpdateProgress) {
+      items.push({
+        key: "progress",
+        icon: <RiseOutlined />,
+        label: "Update Progress",
+        onClick: () => openProgressModal(record),
+      });
+    }
+
+    items.push(
+      {
+        key: "edit",
+        icon: <EditOutlined />,
+        label: "Edit",
+        onClick: () => openEditModal(record),
+      },
+      {
+        key: "hours",
+        icon: <ClockCircleOutlined />,
+        label: "Add Hours",
+        onClick: () => openHoursModal(record),
+      }
+    );
+
+    if (isAdmin) {
+      items.push({
+        key: "delete",
+        icon: <DeleteOutlined />,
+        label: "Delete",
+        danger: true,
+        onClick: () => {
+          Modal.confirm({
+            title: "Delete this item?",
+            okText: "Delete",
+            okType: "danger",
+            onOk: () => onDelete(record),
+          });
+        },
+      });
+    }
+
+    return items;
+  };
+
+  const renderStatusControl = (record) =>
+    isAdmin ? (
+      <Select
+        value={record.status}
+        style={{ width: "100%", minWidth: 120, maxWidth: 160 }}
+        onChange={(v) => updateStatus(record, v)}
+      >
+        <Option value="Pending">Pending</Option>
+        <Option value="In Progress">In Progress</Option>
+        <Option value="Completed">Completed</Option>
+        <Option value="Hold">Hold</Option>
+        <Option value="Rework">Rework</Option>
+      </Select>
+    ) : (
+      <Tag color={FAB_STATUS_COLORS[record.status] || "default"}>{record.status}</Tag>
+    );
+
+  const renderDrawingCard = (record) => {
+    const progress = getDrawingProgress(record);
+    const checklist = checklistPercent(record.checklist);
+
+    return (
+      <Card
+        key={record._id}
+        size="small"
+        style={{ marginBottom: 12 }}
+        title={
+          <Space wrap>
+            <span>{record.itemName}</span>
+            <Tag color={FAB_STATUS_COLORS[record.status] || "default"}>{record.status}</Tag>
+          </Space>
+        }
+        extra={
+          <Dropdown menu={{ items: getActionMenuItems(record) }} trigger={["click"]}>
+            <Button type="text" icon={<MoreOutlined />} aria-label="Actions" />
+          </Dropdown>
+        }
+      >
+        <Descriptions size="small" column={1}>
+          <Descriptions.Item label="Drawing Ref">{record.drawingRef || "—"}</Descriptions.Item>
+          <Descriptions.Item label="Workstation">{record.workstation || "—"}</Descriptions.Item>
+          <Descriptions.Item label="Team">{record.assignedTeam || "—"}</Descriptions.Item>
+          <Descriptions.Item label="Target">{record.targetDate || "—"}</Descriptions.Item>
+          <Descriptions.Item label="Hours">
+            {sumHours(record.hoursLog).toFixed(1)} hrs
+          </Descriptions.Item>
+        </Descriptions>
+
+        <div style={{ marginTop: 12 }}>
+          <div style={{ marginBottom: 4, fontSize: 12, color: "#666" }}>Progress</div>
+          <Progress
+            percent={progress}
+            size="small"
+            status={progress >= 100 ? "success" : "active"}
+          />
+        </div>
+
+        <div style={{ marginTop: 8 }}>
+          <div style={{ marginBottom: 4, fontSize: 12, color: "#666" }}>Checklist</div>
+          <Progress percent={checklist.percent} size="small" />
+        </div>
+
+        {isAdmin && (
+          <div style={{ marginTop: 12 }}>
+            {renderStatusControl(record)}
+          </div>
+        )}
+      </Card>
+    );
+  };
+
   const columns = [
     {
       title: "Item",
       dataIndex: "itemName",
-      width: 180,
+      width: 160,
+      fixed: isMobile ? undefined : "left",
+      ellipsis: true,
     },
     {
       title: "Drawing Ref",
       dataIndex: "drawingRef",
-      width: 150,
+      width: 120,
+      ellipsis: true,
       render: (v) => v || "-",
     },
     {
       title: "Workstation",
       dataIndex: "workstation",
-      width: 150,
+      width: 120,
+      responsive: ["lg"],
+      ellipsis: true,
       render: (v) => v || "-",
     },
     {
-      title: "Assigned Team",
+      title: "Team",
       dataIndex: "assignedTeam",
-      width: 150,
+      width: 110,
+      responsive: ["xl"],
+      ellipsis: true,
       render: (v) => v || "-",
     },
     {
       title: "Qty",
       dataIndex: "quantity",
-      width: 80,
+      width: 60,
+      responsive: ["md"],
     },
     {
-      title: "Target Date",
+      title: "Target",
       dataIndex: "targetDate",
-      width: 130,
+      width: 110,
+      responsive: ["lg"],
       render: (v) => v || "-",
     },
     {
+      title: "Progress",
+      width: 140,
+      render: (_, record) => {
+        const progress = getDrawingProgress(record);
+        return (
+          <Tooltip title={`Updated by ${record.progressUpdatedBy || "—"}`}>
+            <Progress
+              percent={progress}
+              size="small"
+              status={progress >= 100 ? "success" : "active"}
+            />
+          </Tooltip>
+        );
+      },
+    },
+    {
       title: "Checklist",
-      width: 170,
+      width: 120,
+      responsive: ["md"],
       render: (_, record) => {
         const stats = checklistPercent(record.checklist);
         return (
-          <Tooltip
-            title={`${stats.completed}/${stats.total} checklist items completed`}
-          >
+          <Tooltip title={`${stats.completed}/${stats.total} checklist items completed`}>
             <Progress percent={stats.percent} size="small" />
           </Tooltip>
         );
       },
     },
     {
-      title: "Actual Hours",
-      width: 120,
+      title: "Hours",
+      width: 90,
+      responsive: ["lg"],
       render: (_, record) => (
         <Tag color={sumHours(record.hoursLog) > 0 ? "blue" : "default"}>
-          {sumHours(record.hoursLog).toFixed(1)} hrs
+          {sumHours(record.hoursLog).toFixed(1)}
         </Tag>
       ),
     },
     {
       title: "Status",
       dataIndex: "status",
-      width: 170,
-      render: (_, record) => (
-        <Select
-          value={record.status}
-          style={{ width: 160 }}
-          onChange={(v) => updateStatus(record, v)}
-        >
-          <Option value="Pending">Pending</Option>
-          <Option value="In Progress">In Progress</Option>
-          <Option value="Completed">Completed</Option>
-          <Option value="Hold">Hold</Option>
-          <Option value="Rework">Rework</Option>
-        </Select>
-      ),
-    },
-    {
-      title: "Tag",
-      dataIndex: "status",
-      width: 120,
-      render: (status) => (
-        <Tag color={FAB_STATUS_COLORS[status] || "default"}>{status}</Tag>
-      ),
+      width: 150,
+      render: (_, record) => renderStatusControl(record),
     },
     {
       title: "Actions",
-      width: 240,
+      key: "actions",
+      width: 72,
+      fixed: isMobile ? undefined : "right",
       render: (_, record) => (
-        <Space wrap>
-          <Button size="small" onClick={() => openEditModal(record)}>
-            Edit
-          </Button>
-          <Button size="small" onClick={() => openHoursModal(record)}>
-            Add Hours
-          </Button>
-          <Popconfirm title="Delete this item?" onConfirm={() => onDelete(record)}>
-            <Button danger size="small">
-              Delete
-            </Button>
-          </Popconfirm>
-        </Space>
+        <Dropdown menu={{ items: getActionMenuItems(record) }} trigger={["click"]}>
+          <Button type="text" icon={<MoreOutlined />} aria-label="Actions" />
+        </Dropdown>
       ),
     },
   ];
@@ -760,34 +1023,38 @@ export default function Fabrication() {
   const isEmpty = !loadingItems && items.length === 0;
 
   return (
-    <div style={{ padding: 20 }}>
-      <Space
-        style={{ width: "100%", justifyContent: "space-between", marginBottom: 16 }}
-        align="start"
-        wrap
-      >
+    <div className="page-shell">
+      <div className="page-shell__header">
         <div>
-          <h2 style={{ margin: 0 }}>Fabrication</h2>
+          <h2 className="page-shell__title">Fabrication</h2>
           <div style={{ color: "#666", marginTop: 4 }}>
             Only jobs with completed Material Purchasing are available here.
           </div>
         </div>
 
-        <Space wrap>
+        <Space wrap style={{ justifyContent: isMobile ? "flex-start" : "flex-end" }}>
           <Button onClick={() => navigate("/admin/jobs")}>Back to Jobs</Button>
+          <SendForSiteEngineerButton
+            jobId={jobId}
+            stageKey="fabrication"
+            workflowEvents={jobData?.workflowEvents}
+            disabled={!items.length}
+            disabledReason="Add at least one fabrication item first"
+            onSent={(job) => job && setCurrentJobContext(job)}
+          />
           <Button type="primary" onClick={openCreateModal} disabled={!ifcApproved}>
-            + Add Fabrication Item
+            + Add Item
           </Button>
           <Button
             type="primary"
             onClick={completeFabrication}
             loading={completing}
-            disabled={!ifcApproved}
+            disabled={!ifcApproved || !isAdmin}
           >
-            Mark Fabrication Complete
+            {isMobile ? "Complete" : "Mark Fabrication Complete"}
           </Button>
         </Space>
-      </Space>
+      </div>
 
       <Card style={{ marginBottom: 16 }}>
         <Row gutter={[16, 16]} align="middle">
@@ -844,7 +1111,7 @@ export default function Fabrication() {
       ) : (
         <>
           <Card title="Job Summary" style={{ marginBottom: 16 }}>
-            <Descriptions bordered size="small" column={2}>
+            <Descriptions bordered size="small" column={{ xs: 1, sm: 1, md: 2 }}>
               <Descriptions.Item label="Job">
                 {jobData?.jobId || jobData?._id || jobId}
               </Descriptions.Item>
@@ -891,8 +1158,22 @@ export default function Fabrication() {
           </Card>
 
           <Card style={{ marginBottom: 16 }}>
-            <Row gutter={[16, 16]}>
-              <Col xs={24} md={6}>
+            <div style={{ marginBottom: 12, fontWeight: 600 }}>Overall Fabrication Progress</div>
+            <Progress
+              percent={overallProgress}
+              status={overallProgress >= 100 ? "success" : "active"}
+              strokeWidth={14}
+            />
+            {overallProgress >= 100 && (
+              <div style={{ marginTop: 8, color: "#389e0d" }}>
+                All shop drawings reached 100%. Fabrication stage marked complete on job timeline.
+              </div>
+            )}
+          </Card>
+
+          <Card style={{ marginBottom: 16 }}>
+            <Row gutter={[12, 12]}>
+              <Col xs={12} sm={12} md={6}>
                 <Card size="small">
                   <div style={{ color: "#666" }}>Fabrication Items</div>
                   <div style={{ fontSize: 24, fontWeight: 700 }}>
@@ -900,7 +1181,7 @@ export default function Fabrication() {
                   </div>
                 </Card>
               </Col>
-              <Col xs={24} md={6}>
+              <Col xs={12} sm={12} md={6}>
                 <Card size="small">
                   <div style={{ color: "#666" }}>Completed Items</div>
                   <div style={{ fontSize: 24, fontWeight: 700 }}>
@@ -908,7 +1189,7 @@ export default function Fabrication() {
                   </div>
                 </Card>
               </Col>
-              <Col xs={24} md={6}>
+              <Col xs={12} sm={12} md={6}>
                 <Card size="small">
                   <div style={{ color: "#666" }}>Actual Hours</div>
                   <div style={{ fontSize: 24, fontWeight: 700 }}>
@@ -916,7 +1197,7 @@ export default function Fabrication() {
                   </div>
                 </Card>
               </Col>
-              <Col xs={24} md={6}>
+              <Col xs={12} sm={12} md={6}>
                 <Card size="small">
                   <div style={{ color: "#666" }}>Checklist Compliance</div>
                   <Tag color={fabricationSummary.checklistCompleted ? "green" : "orange"}>
@@ -929,19 +1210,71 @@ export default function Fabrication() {
             </Row>
           </Card>
 
-          {isEmpty ? (
-            <Card>
-              <Empty description="No fabrication items currently for this job." />
-            </Card>
-          ) : (
-            <Table
-              columns={columns}
-              dataSource={items}
-              rowKey="_id"
-              loading={loadingItems}
-              pagination={{ pageSize: 10 }}
-            />
-          )}
+          <Tabs
+            activeKey={activeTab}
+            onChange={(key) => {
+              setActiveTab(key);
+              if (key === "history") fetchHistory(jobId);
+            }}
+            items={[
+              {
+                key: "drawings",
+                label: "Shop Drawings",
+                children: isEmpty ? (
+                  <Card>
+                    <Empty description="No fabrication items currently for this job." />
+                  </Card>
+                ) : isMobile ? (
+                  <div>{items.map((record) => renderDrawingCard(record))}</div>
+                ) : (
+                  <div className="table-responsive-wrap">
+                    <Table
+                      columns={columns}
+                      dataSource={items}
+                      rowKey="_id"
+                      loading={loadingItems}
+                      pagination={{ pageSize: 10, showSizeChanger: false }}
+                      scroll={{ x: 1100 }}
+                      size="middle"
+                    />
+                  </div>
+                ),
+              },
+              {
+                key: "history",
+                label: "Activity History",
+                children: (
+                  <Card loading={loadingHistory}>
+                    {history.length === 0 ? (
+                      <Empty description="No fabrication progress history yet." />
+                    ) : (
+                      <Timeline
+                        items={history.map((log) => ({
+                          children: (
+                            <div>
+                              <div style={{ fontWeight: 600 }}>
+                                {(log.fabricationId?.itemName || log.fabricationId?.drawingRef || "Drawing")}{" "}
+                                — {log.oldPercentage}% → {log.newPercentage}%
+                              </div>
+                              <div style={{ color: "#666", fontSize: 12 }}>
+                                {log.updatedBy || "—"} ·{" "}
+                                {log.timestamp
+                                  ? new Date(log.timestamp).toLocaleString()
+                                  : "—"}
+                              </div>
+                              {log.remarks ? (
+                                <div style={{ marginTop: 4 }}>{log.remarks}</div>
+                              ) : null}
+                            </div>
+                          ),
+                        }))}
+                      />
+                    )}
+                  </Card>
+                ),
+              },
+            ]}
+          />
         </>
       )}
 
@@ -951,7 +1284,8 @@ export default function Fabrication() {
         onCancel={resetModal}
         onOk={() => form.submit()}
         okText={editingItem ? "Update" : "Save"}
-        width={900}
+        width={isMobile ? "100%" : 900}
+        style={isMobile ? { top: 16, maxWidth: "calc(100vw - 32px)" } : undefined}
       >
         <Form form={form} layout="vertical" onFinish={onSubmit}>
           <Row gutter={[16,16]} wrap>
@@ -1047,6 +1381,71 @@ export default function Fabrication() {
           <Form.Item name="remarks" label="Remarks">
             <TextArea rows={3} placeholder="Optional notes..." />
           </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={`Update Progress${
+          selectedProgressItem?.drawingRef
+            ? ` - ${selectedProgressItem.drawingRef}`
+            : selectedProgressItem?.itemName
+              ? ` - ${selectedProgressItem.itemName}`
+              : ""
+        }`}
+        open={progressModalOpen}
+        onCancel={resetProgressModal}
+        onOk={() => progressForm.submit()}
+        okText="Save Progress"
+      >
+        <Form form={progressForm} layout="vertical" onFinish={onUpdateProgress}>
+          <Form.Item
+            name="progressPercentage"
+            label="Progress (%)"
+            rules={[{ required: true, message: "Progress percentage is required" }]}
+          >
+            <InputNumber min={0} max={100} style={{ width: "100%" }} />
+          </Form.Item>
+
+          <Form.Item name="remarks" label="Remarks">
+            <TextArea rows={3} placeholder="Notes about this progress update..." />
+          </Form.Item>
+
+          {selectedProgressItem?._id ? (
+            <Form.Item label="Photos (required for 100%)">
+              <Upload
+                multiple
+                beforeUpload={() => false}
+                onChange={async (info) => {
+                  const files = info.fileList
+                    .map((f) => f.originFileObj)
+                    .filter(Boolean);
+                  if (!files.length) return;
+                  try {
+                    await uploadFabricationFiles(selectedProgressItem._id, files);
+                    message.success("Photos uploaded");
+                    await fetchItems(jobId);
+                    const refreshed = (await getFabricationItems(jobId))?.items?.find(
+                      (i) => i._id === selectedProgressItem._id
+                    );
+                    if (refreshed) setSelectedProgressItem(refreshed);
+                  } catch (err) {
+                    message.error(err?.response?.data?.message || "Upload failed");
+                  }
+                }}
+              >
+                <Button icon={<UploadOutlined />}>Upload photos</Button>
+              </Upload>
+              {(selectedProgressItem.photoUrls || []).length > 0 ? (
+                <div style={{ marginTop: 8, fontSize: 12, color: "#666" }}>
+                  {selectedProgressItem.photoUrls.length} file(s) attached
+                </div>
+              ) : (
+                <div style={{ marginTop: 8, fontSize: 12, color: "#cf1322" }}>
+                  No photos yet — upload before setting 100%
+                </div>
+              )}
+            </Form.Item>
+          ) : null}
         </Form>
       </Modal>
 

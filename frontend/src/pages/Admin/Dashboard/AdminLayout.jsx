@@ -1,15 +1,22 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Layout, Button, Typography } from "antd";
 import { MenuOutlined } from "@ant-design/icons";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Navigation from "../../../apps/Navigation/NavigationContainer";
+import BrandLogo from "@/components/BrandLogo";
+import NotificationBell from "@/components/NotificationBell";
 import useResponsive from "@/hooks/useResponsive";
+import {
+  isSiteEngineerBlockedPath,
+  SITE_ENGINEER_HOME,
+} from "@/config/siteEngineerAccess";
 
 const { Header, Content } = Layout;
 const { Text } = Typography;
 
 export default function AdminLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isMobile } = useResponsive();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -25,6 +32,13 @@ export default function AdminLayout() {
       return null;
     }
   })();
+
+  useEffect(() => {
+    if (user?.role !== "siteEngineer") return;
+    if (isSiteEngineerBlockedPath(location.pathname)) {
+      navigate(SITE_ENGINEER_HOME, { replace: true });
+    }
+  }, [location.pathname, user?.role, navigate]);
 
   return (
     <Layout className="admin-shell">
@@ -50,13 +64,21 @@ export default function AdminLayout() {
             />
           )}
 
+          {isMobile ? (
+            <BrandLogo variant="compact" style={{ marginLeft: 4 }} />
+          ) : null}
+
           <Text className="admin-header__title">
-            Admin Panel{user?.name ? ` — ${user.name}` : ""}
+            {user?.role === "siteEngineer" ? "Site Engineer Panel" : "Admin Panel"}
+            {user?.name ? ` — ${user.name}` : ""}
           </Text>
 
-          <Button danger size={isMobile ? "small" : "middle"} onClick={logout}>
-            Logout
-          </Button>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+            <NotificationBell />
+            <Button danger size={isMobile ? "small" : "middle"} onClick={logout}>
+              Logout
+            </Button>
+          </div>
         </Header>
 
         <Content

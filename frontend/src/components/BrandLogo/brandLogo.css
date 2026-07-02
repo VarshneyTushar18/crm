@@ -1,0 +1,13 @@
+.brand-logo {
+  flex-shrink: 0;
+}
+
+.brand-logo--login,
+.brand-logo--auth {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.brand-logo--sidebarCollapsed {
+  margin: 0 auto;
+}

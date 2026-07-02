@@ -23,3 +23,15 @@ export const deleteCustomer = async (id) => {
   const res = await axiosClient.delete(`/api/customer/delete/${id}`);
   return res.data;
 };
+
+export const createCustomerPortalLogin = async (id, password) => {
+  const res = await axiosClient.post(`/api/customer/portal-login/${id}`, { password });
+  return res.data;
+};
+
+export const resetCustomerPortalPassword = async (id, newPassword) => {
+  const res = await axiosClient.post(`/api/customer/reset-password/${id}`, {
+    newPassword,
+  });
+  return res.data;
+};

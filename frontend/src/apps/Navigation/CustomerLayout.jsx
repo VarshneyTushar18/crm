@@ -19,16 +19,19 @@ import {
   LogoutOutlined,
   HistoryOutlined,
   CheckCircleOutlined,
+  FileTextOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   MenuOutlined,
+  FolderOpenOutlined,
   DownOutlined,
 } from "@ant-design/icons";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API_BASE_URL } from '@/config/serverApiConfig';
-import logoIcon from "@/style/images/logo-icon.png";
+import BrandLogo from "@/components/BrandLogo";
 import useResponsive from "@/hooks/useResponsive";
+import NotificationBell from "@/components/NotificationBell";
 
 const { Sider, Header, Content } = Layout;
 const { Text } = Typography;
@@ -65,10 +68,16 @@ export default function CustomerLayout() {
   }, []);
 
   const selectedKey = useMemo(() => {
-    if (location.pathname.startsWith("/portal/projects")) return "projects";
+    if (
+      location.pathname.startsWith("/portal/projects") ||
+      location.pathname.startsWith("/portal/project/")
+    )
+      return "projects";
     if (location.pathname.startsWith("/portal/contact-us")) return "contact-us";
     if (location.pathname.startsWith("/portal/enquiry")) return "contact-us";
     if (location.pathname.startsWith("/portal/invoices")) return "invoices";
+    if (location.pathname.startsWith("/portal/quotes")) return "quotes";
+    if (location.pathname.startsWith("/portal/documents")) return "documents";
     if (location.pathname.startsWith("/portal/payments")) return "payments";
     if (location.pathname.startsWith("/portal/profile")) return "profile";
     if (
@@ -103,6 +112,16 @@ export default function CustomerLayout() {
       key: "contact-us",
       icon: <MailOutlined />,
       label: <Link to="/portal/contact-us">Contact Us</Link>,
+    },
+    {
+      key: "quotes",
+      icon: <FileTextOutlined />,
+      label: <Link to="/portal/quotes">My Quotes</Link>,
+    },
+    {
+      key: "documents",
+      icon: <FolderOpenOutlined />,
+      label: <Link to="/portal/documents">Documents</Link>,
     },
     {
       key: "invoices",
@@ -152,15 +171,8 @@ export default function CustomerLayout() {
           navigate("/portal/dashboard");
         }}
       >
-        <img
-          src={logoIcon}
-          alt="Tech2Globe"
-          style={{
-            height: 42,
-            width: collapsed && !isMobile ? 42 : 180,
-            objectFit: "contain",
-            display: "block",
-          }}
+        <BrandLogo
+          variant={collapsed && !isMobile ? "sidebarCollapsed" : "sidebar"}
         />
       </div>
 
@@ -252,12 +264,14 @@ export default function CustomerLayout() {
               icon={<MenuOutlined style={{ fontSize: 18 }} />}
               onClick={() => setDrawerOpen(true)}
             />
+            <BrandLogo variant="compact" />
             <Text strong style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {customerName}
             </Text>
             <Dropdown menu={{ items: profileMenuItems }} placement="bottomRight" trigger={["click"]}>
               <Button type="text" icon={<UserOutlined />} />
             </Dropdown>
+            <NotificationBell />
           </div>
         ) : (
           <Header
@@ -278,6 +292,7 @@ export default function CustomerLayout() {
             />
 
             <Space size={12}>
+              <NotificationBell />
               <Dropdown
                 menu={{ items: profileMenuItems }}
                 placement="bottomRight"

@@ -93,3 +93,12 @@ export const markInstallationComplete = async (jobId) => {
     );
     return unwrap(res);
 };
+
+export const uploadInstallationActivityFiles = async (id, files) => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+    const res = await axios.post(`${API_BASE_URL}/installation/upload/${id}`, formData, {
+        headers: authHeaders(true),
+    });
+    return unwrap(res);
+};

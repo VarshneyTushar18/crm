@@ -17,15 +17,20 @@ import {
   Row,
   Col,
   Switch,
+  Upload,
 } from "antd";
+import { UploadOutlined, EyeOutlined } from "@ant-design/icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useJob } from "../../context/JobContext";
+import { buildFileUrl } from "@/config/serverApiConfig";
+import SendForSiteEngineerButton from "@/components/SendForSiteEngineerButton";
 import { getJobs, updateJob } from "../Jobs/jobApi";
 import {
   getDraftingRecords,
   createDraftingRecord,
   updateDraftingRecord,
   deleteDraftingRecord,
+  uploadDraftingPdf,
 } from "./draftingApi";
 
 const { Option } = Select;
@@ -74,6 +79,8 @@ export default function Drafting() {
 
   const [open, setOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [pendingPdfFile, setPendingPdfFile] = useState(null);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
   const [form] = Form.useForm();
 
   const queryJobId = useMemo(() => {
@@ -241,6 +248,7 @@ export default function Drafting() {
   const resetModal = () => {
     setOpen(false);
     setEditingRecord(null);
+    setPendingPdfFile(null);
     form.resetFields();
   };
 
@@ -251,6 +259,7 @@ export default function Drafting() {
     }
 
     setEditingRecord(null);
+    setPendingPdfFile(null);
     form.resetFields();
     form.setFieldsValue({
       status: "Draft",
@@ -261,6 +270,7 @@ export default function Drafting() {
 
   const openEditModal = (record) => {
     setEditingRecord(record);
+    setPendingPdfFile(null);
     form.setFieldsValue({
       title: record.title || "",
       drawingType: record.drawingType || "",
@@ -274,6 +284,44 @@ export default function Drafting() {
       isIFCApproved: !!record.isIFCApproved,
     });
     setOpen(true);
+  };
+
+  const handlePdfSelect = async (file) => {
+    if (!file || file.type !== "application/pdf") {
+      message.error("Please select a PDF file");
+      return false;
+    }
+
+    if (editingRecord?._id) {
+      try {
+        setUploadingPdf(true);
+        const updated = await uploadDraftingPdf(editingRecord._id, file);
+        form.setFieldsValue({ fileUrl: updated?.fileUrl || "" });
+        setEditingRecord((prev) => ({ ...prev, fileUrl: updated?.fileUrl }));
+        message.success("PDF uploaded");
+        await fetchRecords(jobId);
+      } catch (err) {
+        message.error(
+          err?.response?.data?.message || err?.message || "PDF upload failed"
+        );
+      } finally {
+        setUploadingPdf(false);
+      }
+    } else {
+      setPendingPdfFile(file);
+      message.info("PDF will upload when you save the record");
+    }
+
+    return false;
+  };
+
+  const viewPdf = (fileUrl) => {
+    const url = buildFileUrl(fileUrl);
+    if (!url) {
+      message.warning("No PDF uploaded yet");
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const onSubmit = async (values) => {
@@ -292,17 +340,35 @@ export default function Drafting() {
       checkedBy: values.checkedBy,
       approvedBy: values.approvedBy,
       remarks: values.remarks,
-      fileUrl: values.fileUrl,
+      fileUrl: values.fileUrl || editingRecord?.fileUrl || "",
       isIFCApproved: !!values.isIFCApproved,
     };
 
     try {
+      let savedRecord = null;
+
       if (editingRecord?._id) {
-        await updateDraftingRecord(editingRecord._id, payload);
+        savedRecord = await updateDraftingRecord(editingRecord._id, payload);
         message.success("Drafting record updated");
       } else {
-        await createDraftingRecord(payload);
+        savedRecord = await createDraftingRecord(payload);
         message.success("Drafting record added");
+      }
+
+      const recordId = savedRecord?._id || editingRecord?._id;
+
+      if (pendingPdfFile && recordId) {
+        try {
+          setUploadingPdf(true);
+          await uploadDraftingPdf(recordId, pendingPdfFile);
+          message.success("PDF uploaded");
+        } catch (err) {
+          message.error(
+            err?.response?.data?.message || err?.message || "Record saved but PDF upload failed"
+          );
+        } finally {
+          setUploadingPdf(false);
+        }
       }
 
       await fetchRecords(jobId);
@@ -425,12 +491,17 @@ export default function Drafting() {
         ),
     },
     {
-      title: "File",
+      title: "PDF",
       render: (_, record) =>
         record.fileUrl ? (
-          <a href={record.fileUrl} target="_blank" rel="noreferrer">
-            Open File
-          </a>
+          <Button
+            type="link"
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => viewPdf(record.fileUrl)}
+          >
+            View PDF
+          </Button>
         ) : (
           "-"
         ),
@@ -480,6 +551,14 @@ export default function Drafting() {
 
         <Space wrap>
           <Button onClick={() => navigate("/admin/jobs")}>Back to Jobs</Button>
+          <SendForSiteEngineerButton
+            jobId={jobId}
+            stageKey="drafting"
+            workflowEvents={jobData?.workflowEvents}
+            disabled={!records.length}
+            disabledReason="Add at least one drafting record first"
+            onSent={(job) => job && setCurrentJobContext(job)}
+          />
           <Button type="primary" onClick={openCreateModal}>
             + Add Draft
           </Button>
@@ -648,8 +727,37 @@ export default function Drafting() {
             <Input placeholder="Approver name" />
           </Form.Item>
 
-          <Form.Item name="fileUrl" label="File URL">
-            <Input placeholder="PDF / DWG / Drive link" />
+          <Form.Item name="fileUrl" hidden>
+            <Input />
+          </Form.Item>
+
+          <Form.Item label="Drawing PDF">
+            <Space wrap>
+              <Upload
+                accept=".pdf,application/pdf"
+                showUploadList={false}
+                beforeUpload={handlePdfSelect}
+              >
+                <Button icon={<UploadOutlined />} loading={uploadingPdf}>
+                  Upload PDF
+                </Button>
+              </Upload>
+
+              {(form.getFieldValue("fileUrl") || editingRecord?.fileUrl) && (
+                <Button
+                  icon={<EyeOutlined />}
+                  onClick={() =>
+                    viewPdf(form.getFieldValue("fileUrl") || editingRecord?.fileUrl)
+                  }
+                >
+                  View PDF
+                </Button>
+              )}
+
+              {pendingPdfFile && !editingRecord?._id && (
+                <Tag color="blue">{pendingPdfFile.name} (pending upload)</Tag>
+              )}
+            </Space>
           </Form.Item>
 
           <Form.Item name="remarks" label="Remarks">

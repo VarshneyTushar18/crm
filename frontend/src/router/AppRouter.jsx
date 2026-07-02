@@ -29,6 +29,7 @@ import Fabrication from "../pages/Fabrication";
 import QC from "../pages/QC";
 import Installation from "../pages/Installation";
 import Attendance from "../pages/Attendance";
+import LeavePage from "../pages/Leave";
 
 import Customer from "../pages/Customer";
 
@@ -42,10 +43,21 @@ import CustomerDashboard from "../pages/CustomerPortal/Dashboard";
 import CustomerProjects from "../pages/CustomerPortal/Projects";
 import CustomerProjectDetails from "../pages/CustomerPortal/ProjectDetails";
 import CustomerInvoices from "../pages/CustomerPortal/Invoices";
+import CustomerInvoiceDetails from "../pages/CustomerPortal/Invoices/InvoiceDetails";
+import CustomerQuotes from "../pages/CustomerPortal/Quotes";
+import CustomerQuoteDetails from "../pages/CustomerPortal/Quotes/QuoteDetails";
+import CustomerDocuments from "../pages/CustomerPortal/Documents";
 import CustomerPayments from "../pages/CustomerPortal/Payments";
 import ContactUs from "../pages/CustomerPortal/ContactUs";
 import ContactRequests from "../pages/Admin/ContactRequests";
 import About from "../pages/About";
+import Suppliers from "../pages/Procurement/Suppliers";
+import RfqPage from "../pages/Procurement/Rfq";
+import PurchaseOrders from "../pages/Procurement/PurchaseOrders";
+import Sites from "../pages/Procurement/Sites";
+import Scheduling from "../pages/Scheduling";
+import SiteEngineer from "../pages/SiteEngineer";
+import LeadSourcesSettings from "../modules/SettingModule/LeadSourcesSettings";
 
 // ✅ Idurar modules
 import DashboardModule from "../modules/DashboardModule";
@@ -84,6 +96,19 @@ import FinanceSettingsModule from "../modules/SettingModule/FinanceSettingsModul
 import GeneralSettingsModule from "../modules/SettingModule/GeneralSettingsModule";
 import MoneyFormatSettingsModule from "../modules/SettingModule/MoneyFormatSettingsModule";
 import Employee from "@/pages/Employee";
+import { SITE_ENGINEER_HOME } from "@/config/siteEngineerAccess";
+
+function AdminHome() {
+  try {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    if (user?.role === "siteEngineer") {
+      return <Navigate to={SITE_ENGINEER_HOME} replace />;
+    }
+  } catch {
+    // fall through to admin dashboard
+  }
+  return <DashboardModule />;
+}
 
 export default function AppRouter() {
   return (
@@ -101,9 +126,9 @@ export default function AppRouter() {
       <Route path="/portal/login" element={<CustomerLogin />} />
 
       {/* ✅ Admin (nested) */}
-      <Route element={<ProtectedRoute allowRoles={["admin"]} />}>
+      <Route element={<ProtectedRoute allowRoles={["admin", "siteEngineer"]} />}>
         <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<DashboardModule />} />
+          <Route index element={<AdminHome />} />
 
           <Route path="lead" element={<Lead />} />
           <Route path="lead/:id" element={<LeadView />} />
@@ -113,7 +138,9 @@ export default function AppRouter() {
           {/* ✅ Planning group */}
           <Route path="site-measurement" element={<SiteMeasurement />} />
           <Route path="planning" element={<Planning />} />
+          <Route path="scheduling" element={<Scheduling />} />
           <Route path="drafting" element={<Drafting />} />
+          <Route path="site-engineer" element={<SiteEngineer />} />
 
           {/* ✅ Production group */}
           <Route path="kanban" element={<Kanban />} />
@@ -126,6 +153,7 @@ export default function AppRouter() {
 
           {/* ✅ Other admin pages */}
           <Route path="attendance" element={<Attendance />} />
+          <Route path="leave" element={<LeavePage />} />
           <Route path="employee" element={<Employee />} />
           <Route path="customer" element={<Customer />} />
 
@@ -154,6 +182,10 @@ export default function AppRouter() {
           {/* ✅ PAYMENT */}
           <Route path="payment" element={<PaymentDataTableModule />} />
           <Route path="contact-requests" element={<ContactRequests />} />
+          <Route path="suppliers" element={<Suppliers />} />
+          <Route path="rfq" element={<RfqPage />} />
+          <Route path="purchase-orders" element={<PurchaseOrders />} />
+          <Route path="sites" element={<Sites />} />
           <Route path="payment/read/:id" element={<ReadPaymentModule />} />
           <Route path="payment/update/:id" element={<UpdatePaymentModule />} />
 
@@ -165,6 +197,7 @@ export default function AppRouter() {
             <Route path="finance" element={<FinanceSettingsModule />} />
             <Route path="general" element={<GeneralSettingsModule />} />
             <Route path="money-format" element={<MoneyFormatSettingsModule />} />
+            <Route path="lead-sources" element={<LeadSourcesSettings />} />
           </Route>
 
           <Route path="about" element={<About />} />
@@ -186,9 +219,14 @@ export default function AppRouter() {
           <Route path="dashboard" element={<CustomerDashboard />} />
           <Route path="projects" element={<CustomerProjects />} />
           <Route path="projects/:id" element={<CustomerProjectDetails />} />
+          <Route path="project/:id" element={<CustomerProjectDetails />} />
 
           <Route path="contact-us" element={<ContactUs />} />
+          <Route path="quotes" element={<CustomerQuotes />} />
+          <Route path="quotes/:id" element={<CustomerQuoteDetails />} />
+          <Route path="documents" element={<CustomerDocuments />} />
           <Route path="invoices" element={<CustomerInvoices />} />
+          <Route path="invoices/:id" element={<CustomerInvoiceDetails />} />
           <Route path="payments" element={<CustomerPayments />} />
           <Route path="enquiry" element={<div style={{ padding: 16 }}>Enquiry Page</div>} />
 

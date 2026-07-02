@@ -97,6 +97,7 @@ const routes = {
         { path: "dashboard", element: <CustomerDashboard /> },
         { path: "projects", element: <CustomerProjects /> },
         { path: "projects/:id", element: <CustomerProjectDetails /> },
+        { path: "project/:id", element: <CustomerProjectDetails /> },
         { path: "contact-us", element: <ContactUs /> },
 
         { path: "payments", element: <CustomerPayments /> },

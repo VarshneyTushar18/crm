@@ -5,7 +5,7 @@ import PageLoader from "@/components/PageLoader";
 import { erp } from "@/redux/erp/actions";
 import { selectReadItem } from "@/redux/erp/selectors";
 
-import { useLayoutEffect, useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useParams, useNavigate } from "react-router-dom";
 
@@ -53,6 +53,8 @@ export default function ReadQuoteModule({ config }) {
   const [approving, setApproving] = useState(false);
   const [jobIdCreated, setJobIdCreated] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [acceptMethod, setAcceptMethod] = useState("");
+  const canvasRef = useRef(null);
   const [form] = Form.useForm();
 
   const canApprove =
@@ -63,7 +65,12 @@ export default function ReadQuoteModule({ config }) {
     try {
       setApproving(true);
 
-      const res = await approveQuote(id, values);
+      let signatureImage = "";
+      if (values.method === "System" && canvasRef.current) {
+        signatureImage = canvasRef.current.toDataURL("image/png");
+      }
+
+      const res = await approveQuote(id, { ...values, signatureImage });
 
       message.success("Quote accepted. Job created and Quote locked.");
 
@@ -274,12 +281,52 @@ export default function ReadQuoteModule({ config }) {
             label="Acceptance Method"
             rules={[{ required: true, message: "Please select the acceptance method" }]}
           >
-            <Select placeholder="Select Method">
+            <Select placeholder="Select Method" onChange={setAcceptMethod}>
               <Option value="Email">Email</Option>
               <Option value="System">System (E-Sign)</Option>
               <Option value="Manual Confirmation">Manual Confirmation</Option>
             </Select>
           </Form.Item>
+          {acceptMethod === "System" && (
+            <Form.Item label="E-Sign (draw below)">
+              <canvas
+                ref={canvasRef}
+                width={420}
+                height={120}
+                style={{ border: "1px solid #ccc", borderRadius: 6, width: "100%" }}
+                onMouseDown={(e) => {
+                  const canvas = canvasRef.current;
+                  const ctx = canvas.getContext("2d");
+                  const rect = canvas.getBoundingClientRect();
+                  const draw = (ev) => {
+                    ctx.lineWidth = 2;
+                    ctx.lineCap = "round";
+                    ctx.strokeStyle = "#111";
+                    ctx.lineTo(ev.clientX - rect.left, ev.clientY - rect.top);
+                    ctx.stroke();
+                  };
+                  ctx.beginPath();
+                  ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+                  canvas.onmousemove = draw;
+                  canvas.onmouseup = () => {
+                    canvas.onmousemove = null;
+                    canvas.onmouseup = null;
+                  };
+                }}
+              />
+              <Button
+                size="small"
+                style={{ marginTop: 8 }}
+                onClick={() => {
+                  const canvas = canvasRef.current;
+                  const ctx = canvas.getContext("2d");
+                  ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }}
+              >
+                Clear Signature
+              </Button>
+            </Form.Item>
+          )}
           <Form.Item
             name="acceptedBy"
             label="Confirmed By (User/Client Name)"

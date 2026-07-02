@@ -29,6 +29,7 @@ import {
   updateMaterialItem,
   deleteMaterialItem,
 } from "./materialPurchaseApi";
+import SendForSiteEngineerButton from "@/components/SendForSiteEngineerButton";
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -56,6 +57,7 @@ const JOB_STATUS_COLORS = {
 const ITEM_STATUS_COLORS = {
   Pending: "default",
   Ordered: "blue",
+  Delayed: "volcano",
   "Partially Received": "orange",
   Received: "green",
   Cancelled: "red",
@@ -492,6 +494,7 @@ export default function MaterialPurchase() {
         >
           <Option value="Pending">Pending</Option>
           <Option value="Ordered">Ordered</Option>
+          <Option value="Delayed">Delayed</Option>
           <Option value="Partially Received">Partially Received</Option>
           <Option value="Received">Received</Option>
           <Option value="Cancelled">Cancelled</Option>
@@ -543,6 +546,14 @@ export default function MaterialPurchase() {
 
         <Space wrap>
           <Button onClick={() => navigate("/admin/jobs")}>Back to Jobs</Button>
+          <SendForSiteEngineerButton
+            jobId={jobId}
+            stageKey="materialPurchasing"
+            workflowEvents={jobData?.workflowEvents}
+            disabled={!items.length}
+            disabledReason="Add at least one material item first"
+            onSent={(job) => job && setCurrentJobContext(job)}
+          />
           <Button type="primary" onClick={openCreateModal}>
             + Add Item
           </Button>

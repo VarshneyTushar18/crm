@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Table, Button, Space, Popconfirm, message, Select, Tag } from "antd";
+import { Table, Button, Space, Popconfirm, message, Select, Tag, Progress } from "antd";
 import JobForm from "./JobForm";
 import { getJobs, createJob, deleteJob, updateJob } from "./jobApi";
 import { useNavigate } from "react-router-dom";
@@ -108,6 +108,18 @@ export default function Jobs() {
       dataIndex: "site",
       render: (v) => v || "-",
       width: 220,
+    },
+    {
+      title: "Progress",
+      dataIndex: "completionPercent",
+      width: 140,
+      render: (v) => (
+        <Progress
+          percent={Number(v || 0)}
+          size="small"
+          style={{ minWidth: 100 }}
+        />
+      ),
     },
     {
       title: "State",

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, Form, Input, Button, Upload, message } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import axios from "axios";
+import BrandLogo from "@/components/BrandLogo";
 import { API_BASE_URL, BASE_URL } from '@/config/serverApiConfig';
 
 const API_BASE = API_BASE_URL;
@@ -78,23 +79,25 @@ export default function CompanySettings() {
         <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 16 }}>
           <div
             style={{
-              width: 72,
-              height: 72,
+              width: 120,
+              height: 56,
               borderRadius: 12,
               overflow: "hidden",
               background: "#f0f0f0",
-              display: "grid",
-              placeItems: "center",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "4px 8px",
             }}
           >
             {logoUrl ? (
               <img
                 src={`${BASE_URL}${logoUrl}`}
                 alt="logo"
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
               />
             ) : (
-              <div style={{ fontWeight: 800 }}>LOGO</div>
+              <BrandLogo variant="compact" />
             )}
           </div>
 

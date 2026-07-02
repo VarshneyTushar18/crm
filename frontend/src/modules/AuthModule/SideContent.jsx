@@ -1,5 +1,5 @@
 import { Space, Layout, Divider, Typography } from 'antd';
-import logo from '@/style/images/idurar-crm-erp.svg';
+import BrandLogo from '@/components/BrandLogo';
 import useLanguage from '@/locale/useLanguage';
 import { useSelector } from 'react-redux';
 
@@ -20,13 +20,7 @@ export default function SideContent() {
       className="sideContent"
     >
       <div style={{ width: '100%' }}>
-        <img
-          src={logo}
-          alt="IDURAR ERP CRM"
-          style={{ margin: '0 0 40px', display: 'block' }}
-          height={63}
-          width={220}
-        />
+        <BrandLogo variant="auth" style={{ margin: '0 0 40px' }} />
 
         <Title level={1} style={{ fontSize: 28 }}>
           Free Open Source ERP / CRM

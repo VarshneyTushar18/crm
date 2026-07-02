@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Card, Form, Input, Button, Typography, message } from "antd";
+import BrandLogo from "@/components/BrandLogo";
 import { Link, useNavigate } from "react-router-dom";
 import { registerCustomerApi } from "../Login/authApi";
 
@@ -53,6 +54,9 @@ export default function Register() {
       }}
     >
       <Card style={{ width: 460, borderRadius: 14 }}>
+        <div style={{ textAlign: "center", marginBottom: 16 }}>
+          <BrandLogo variant="login" />
+        </div>
         <div style={{ marginBottom: 12 }}>
           <Title level={3} style={{ margin: 0 }}>
             Customer Sign Up

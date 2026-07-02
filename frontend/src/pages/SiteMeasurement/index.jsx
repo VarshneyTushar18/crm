@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API_BASE_URL } from '@/config/serverApiConfig';
 import dayjs from "dayjs";
+import { useJob } from "../../context/JobContext";
 import {
   Row,
   Col,
@@ -20,7 +21,13 @@ import {
   Switch,
   Tag,
   Spin,
+  Upload,
+  List,
+  Alert,
 } from "antd";
+import { UploadOutlined } from "@ant-design/icons";
+import { uploadMeasurementFiles } from "@/api/phase1Api";
+import SendForSiteEngineerButton from "@/components/SendForSiteEngineerButton";
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -37,6 +44,7 @@ export default function SiteMeasurement() {
   const [form] = Form.useForm();
   const location = useLocation();
   const navigate = useNavigate();
+  const { activeJobId, setActiveJobId } = useJob();
 
   const [jobs, setJobs] = useState([]);
   const [selectedJobId, setSelectedJobId] = useState(null);
@@ -47,6 +55,7 @@ export default function SiteMeasurement() {
   const [loadingJob, setLoadingJob] = useState(false);
   const [loadingMeasurement, setLoadingMeasurement] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [completing, setCompleting] = useState(false);
 
   // ✅ existing measurement -> view mode by default
   const [isEditMode, setIsEditMode] = useState(false);
@@ -55,6 +64,18 @@ export default function SiteMeasurement() {
     const params = new URLSearchParams(location.search);
     return params.get("jobId");
   }, [location.search]);
+
+  const resolvedJobId =
+    queryJobId || activeJobId || localStorage.getItem("activeJobId") || null;
+
+  const setCurrentJobContext = (job) => {
+    if (!job?._id) return;
+    setActiveJobId(job._id);
+    localStorage.setItem("activeJobId", job._id);
+    localStorage.setItem(`activeJobData_${job._id}`, JSON.stringify(job));
+    localStorage.setItem("activeJobData", JSON.stringify(job));
+    setSelectedJob(job);
+  };
 
   const currentStageColor = {
     Backlog: "default",
@@ -90,12 +111,11 @@ export default function SiteMeasurement() {
         washroomAccess: measurement.washroomAccess || "",
         publicRisk: measurement.publicRisk || "",
         whsHazards: measurement.whsHazards || "",
-        gpsLocation: measurement.gpsLocation || "",
         notes: measurement.notes || "",
         measurementDate: measurement.measurementDate
           ? dayjs(measurement.measurementDate)
           : dayjs(),
-        status: measurement.status || "Completed",
+        status: measurement.status || "Pending",
       });
     } else {
       form.setFieldsValue({
@@ -117,10 +137,9 @@ export default function SiteMeasurement() {
         washroomAccess: "",
         publicRisk: "",
         whsHazards: "",
-        gpsLocation: "",
         notes: "",
         measurementDate: dayjs(),
-        status: "Completed",
+        status: "Pending",
       });
     }
   };
@@ -153,7 +172,8 @@ export default function SiteMeasurement() {
         headers: authHeaders(),
       });
       const job = res.data?.result || null;
-      setSelectedJob(job);
+      if (job) setCurrentJobContext(job);
+      else setSelectedJob(null);
       return job;
     } catch (err) {
       setSelectedJob(null);
@@ -214,10 +234,26 @@ export default function SiteMeasurement() {
   }, []);
 
   useEffect(() => {
-    if (queryJobId) {
-      setSelectedJobId(queryJobId);
+    const incomingJob = location.state?.job || location.state?.fromJob;
+    if (incomingJob?._id) {
+      setCurrentJobContext(incomingJob);
+      setSelectedJobId(incomingJob._id);
+      if (!queryJobId) {
+        navigate(`/admin/site-measurement?jobId=${incomingJob._id}`, {
+          replace: true,
+          state: location.state,
+        });
+      }
+      return;
     }
-  }, [queryJobId]);
+
+    if (resolvedJobId) {
+      setSelectedJobId(resolvedJobId);
+      if (!queryJobId) {
+        navigate(`/admin/site-measurement?jobId=${resolvedJobId}`, { replace: true });
+      }
+    }
+  }, [queryJobId, resolvedJobId, location.state]);
 
   useEffect(() => {
     if (!selectedJobId) return;
@@ -233,8 +269,12 @@ export default function SiteMeasurement() {
   const onJobChange = (jobObjectId) => {
     setSelectedJobId(jobObjectId || null);
     if (jobObjectId) {
+      const job = jobs.find((j) => j._id === jobObjectId);
+      if (job) setCurrentJobContext(job);
       navigate(`/admin/site-measurement?jobId=${jobObjectId}`);
     } else {
+      setActiveJobId("");
+      localStorage.removeItem("activeJobId");
       navigate(`/admin/site-measurement`);
       setSelectedJob(null);
       setCurrentMeasurement(null);
@@ -299,41 +339,40 @@ export default function SiteMeasurement() {
     applyMeasurementToForm(null, selectedJob);
   };
 
-  const getCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      message.error("Geolocation is not supported on this device");
+  const completeSiteMeasurement = async () => {
+    if (!selectedJobId) {
+      message.warning("Please select a job first");
+      return;
+    }
+    if (!currentMeasurement?._id) {
+      message.warning("Save the measurement first, then complete it");
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-
-        form.setFieldsValue({
-          gpsLocation: `${lat}, ${lng}`,
-        });
-
-        message.success("Current location captured");
-      },
-      (error) => {
-        if (error.code === 1) {
-          message.error("Location permission denied");
-        } else if (error.code === 2) {
-          message.error("Location unavailable");
-        } else if (error.code === 3) {
-          message.error("Location request timed out");
-        } else {
-          message.error("Failed to get current location");
-        }
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      }
-    );
+    try {
+      setCompleting(true);
+      await axios.patch(
+        `${MEASUREMENT_API}/update/${currentMeasurement._id}`,
+        { status: "Completed" },
+        { headers: authHeaders() }
+      );
+      message.success("Site measurement sent to Site Engineer for approval");
+      const refreshedJob = await fetchJob(selectedJobId);
+      await fetchMeasurementForJob(selectedJobId, refreshedJob);
+      setIsEditMode(false);
+    } catch (err) {
+      message.error(
+        err?.response?.data?.message || err?.message || "Failed to complete measurement"
+      );
+    } finally {
+      setCompleting(false);
+    }
   };
+
+  const measurementComplete = Boolean(
+    selectedJob?.workflowEvents?.siteMeasurement?.isCompleted ||
+      currentMeasurement?.status === "Completed"
+  );
 
   return (
     <div style={{ padding: 20 }}>
@@ -356,8 +395,85 @@ export default function SiteMeasurement() {
 
         <Space wrap>
           <Button onClick={() => navigate("/admin/jobs")}>Back to Jobs</Button>
+          {selectedJob?._id && (
+            <Button onClick={() => navigate(`/admin/planning?jobId=${selectedJob._id}`)}>
+              Go to Planning
+            </Button>
+          )}
+          {selectedJob?._id && (
+            <SendForSiteEngineerButton
+              jobId={selectedJob._id}
+              stageKey="siteMeasurement"
+              workflowEvents={selectedJob?.workflowEvents}
+              disabled={!currentMeasurement?._id}
+              disabledReason="Save the measurement first"
+              onSent={(job) => {
+                if (job) setSelectedJob(job);
+              }}
+            />
+          )}
+          {selectedJob?._id && (
+            <Button onClick={() => navigate(`/admin/job/${selectedJob._id}`)}>
+              View Job Timeline
+            </Button>
+          )}
+          {currentMeasurement?._id && !measurementComplete ? (
+            <Button type="primary" onClick={completeSiteMeasurement} loading={completing}>
+              Complete Site Measurement
+            </Button>
+          ) : null}
         </Space>
       </div>
+
+      {selectedJob && currentMeasurement && !measurementComplete ? (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Measurement saved but not completed"
+          description='Click "Complete Site Measurement" to send this stage to Site Engineer for approval.'
+        />
+      ) : null}
+
+      {selectedJob ? (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={
+            <span>
+              <strong>Active project:</strong> {selectedJob.jobId} — {selectedJob.customer || "Customer"}
+              {selectedJob.site ? ` @ ${selectedJob.site}` : ""}
+            </span>
+          }
+          description={
+            <Space wrap size="middle">
+              <span>
+                Stage:{" "}
+                <Tag color={currentStageColor[selectedJob.stage] || "blue"}>
+                  {selectedJob.stage || "Site Measurement"}
+                </Tag>
+              </span>
+              <span>
+                Measurement:{" "}
+                {currentMeasurement ? (
+                  <Tag color="green">Saved</Tag>
+                ) : (
+                  <Tag color="orange">New — not saved yet</Tag>
+                )}
+              </span>
+            </Space>
+          }
+        />
+      ) : (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="No project selected"
+          description="Open this page from Jobs → View Timeline, or pick a job below."
+        />
+      )}
 
       <Card style={{ marginBottom: 16 }}>
         <Row gutter={[16, 16]} align="middle">
@@ -368,7 +484,7 @@ export default function SiteMeasurement() {
               allowClear
               placeholder="Select job"
               style={{ width: "100%" }}
-              value={selectedJobId || undefined}
+              value={selectedJobId || resolvedJobId || undefined}
               onChange={onJobChange}
               loading={loadingJobs}
               optionFilterProp="children"
@@ -543,25 +659,6 @@ export default function SiteMeasurement() {
                     />
                   </Form.Item>
                 </Col>
-
-                <Col xs={24} md={8}>
-                  <Form.Item label="GPS Location">
-                    <Space.Compact style={{ width: "100%" }}>
-                      <Form.Item name="gpsLocation" noStyle>
-                        <Input
-                          readOnly
-                          placeholder="Current location will appear here"
-                        />
-                      </Form.Item>
-                      <Button
-                        onClick={getCurrentLocation}
-                        disabled={currentMeasurement && !isEditMode}
-                      >
-                        Get Location
-                      </Button>
-                    </Space.Compact>
-                  </Form.Item>
-                </Col>
               </Row>
 
               <Divider orientation="left">Checklist / Site Conditions</Divider>
@@ -614,6 +711,47 @@ export default function SiteMeasurement() {
                       disabled={currentMeasurement && !isEditMode}
                     />
                   </Form.Item>
+
+                  {currentMeasurement?._id && (
+                    <Form.Item label="Files (JPEG / PDF / Drawings)">
+                      <Upload
+                        multiple
+                        beforeUpload={() => false}
+                        onChange={async (info) => {
+                          const files = info.fileList
+                            .map((f) => f.originFileObj)
+                            .filter(Boolean);
+                          if (!files.length) return;
+                          try {
+                            const res = await uploadMeasurementFiles(
+                              currentMeasurement._id,
+                              files
+                            );
+                            setCurrentMeasurement(res.data.result);
+                            message.success(res.data.message || "Files uploaded");
+                          } catch (err) {
+                            message.error(
+                              err?.response?.data?.message || "Upload failed"
+                            );
+                          }
+                        }}
+                      >
+                        <Button icon={<UploadOutlined />}>Upload files</Button>
+                      </Upload>
+                      <List
+                        size="small"
+                        style={{ marginTop: 8 }}
+                        dataSource={currentMeasurement.photoUrls || []}
+                        renderItem={(url) => (
+                          <List.Item>
+                            <a href={url.startsWith("http") ? url : `${API_BASE_URL.replace("/api", "")}${url}`} target="_blank" rel="noreferrer">
+                              {url}
+                            </a>
+                          </List.Item>
+                        )}
+                      />
+                    </Form.Item>
+                  )}
                 </Col>
 
                 <Col xs={24} md={6}>

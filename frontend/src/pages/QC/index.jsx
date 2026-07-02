@@ -19,6 +19,7 @@ import {
   Col,
 } from "antd";
 import { useNavigate, useLocation } from "react-router-dom";
+import { FormOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useJob } from "../../context/JobContext";
 import { getJobs, updateJob } from "../Jobs/jobApi";
@@ -29,6 +30,13 @@ import {
   deleteQcItem,
 } from "./qcApi";
 
+import { markPowderCoatingComplete } from "@/api/extensionApi";
+
+const INSPECTION_TYPES = [
+  { label: "Finishing & QC", value: "Finishing & QC", stage: "finishing" },
+  { label: "Fabrication QC", value: "Fabrication QC", stage: "fabricationQc" },
+  { label: "Powder Coating QC", value: "Powder Coating QC", stage: "powderCoatingQc" },
+];
 const { Option } = Select;
 const { TextArea } = Input;
 
@@ -73,6 +81,8 @@ export default function QC() {
   const [completing, setCompleting] = useState(false);
 
   const [open, setOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [viewItem, setViewItem] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   const [form] = Form.useForm();
 
@@ -261,16 +271,28 @@ export default function QC() {
     setOpen(true);
   };
 
+  const openViewModal = (record) => {
+    setViewItem(record);
+    setViewOpen(true);
+  };
+
+  const closeViewModal = () => {
+    setViewOpen(false);
+    setViewItem(null);
+  };
+
   const onSubmit = async (values) => {
     if (!jobId) {
       message.warning("Please select a job first");
       return;
     }
 
+    const stageMeta = INSPECTION_TYPES.find((t) => t.value === values.inspectionType);
     const payload = {
       jobId,
       itemName: values.itemName,
       inspectionType: values.inspectionType || "",
+      workflowStageKey: stageMeta?.stage || "",
       checkedBy: values.checkedBy || "",
       checkedDate: values.checkedDate
         ? values.checkedDate.format("YYYY-MM-DD")
@@ -473,9 +495,16 @@ export default function QC() {
     },
     {
       title: "Actions",
-      width: 150,
+      width: 200,
+      fixed: "right",
       render: (_, record) => (
         <Space>
+          <Button
+            size="small"
+            icon={<FormOutlined />}
+            onClick={() => openViewModal(record)}
+            title="View form"
+          />
           <Button size="small" onClick={() => openEditModal(record)}>
             Edit
           </Button>
@@ -516,6 +545,20 @@ export default function QC() {
           </Button>
           <Button type="primary" onClick={completeQc} loading={completing}>
             Mark QC Complete
+          </Button>
+          <Button
+            onClick={async () => {
+              if (!jobId) return message.warning("Select a job first");
+              try {
+                await markPowderCoatingComplete(jobId);
+                message.success("Powder coating marked complete");
+                await fetchItems(jobId);
+              } catch (err) {
+                message.error(err?.response?.data?.message || "Failed");
+              }
+            }}
+          >
+            Mark Powder Coating Done
           </Button>
         </Space>
       </Space>
@@ -622,6 +665,54 @@ export default function QC() {
       )}
 
       <Modal
+        title="QC Item — Form View"
+        open={viewOpen}
+        onCancel={closeViewModal}
+        footer={[
+          <Button key="close" onClick={closeViewModal}>
+            Close
+          </Button>,
+          <Button
+            key="edit"
+            type="primary"
+            onClick={() => {
+              closeViewModal();
+              if (viewItem) openEditModal(viewItem);
+            }}
+          >
+            Edit
+          </Button>,
+        ]}
+        width={560}
+      >
+        {viewItem ? (
+          <Descriptions bordered size="small" column={1}>
+            <Descriptions.Item label="Item Name">{viewItem.itemName || "-"}</Descriptions.Item>
+            <Descriptions.Item label="Inspection Type">
+              {viewItem.inspectionType || "-"}
+            </Descriptions.Item>
+            <Descriptions.Item label="Workflow Stage">
+              {viewItem.workflowStageKey || "-"}
+            </Descriptions.Item>
+            <Descriptions.Item label="Checked By">{viewItem.checkedBy || "-"}</Descriptions.Item>
+            <Descriptions.Item label="Checked Date">{viewItem.checkedDate || "-"}</Descriptions.Item>
+            <Descriptions.Item label="Status">
+              <Tag color={QC_STATUS_COLORS[viewItem.status] || "default"}>
+                {viewItem.status || "Pending"}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="Remarks">{viewItem.remarks || "-"}</Descriptions.Item>
+            <Descriptions.Item label="Created">
+              {viewItem.createdAt ? dayjs(viewItem.createdAt).format("DD MMM YYYY HH:mm") : "-"}
+            </Descriptions.Item>
+            <Descriptions.Item label="Last Updated">
+              {viewItem.updatedAt ? dayjs(viewItem.updatedAt).format("DD MMM YYYY HH:mm") : "-"}
+            </Descriptions.Item>
+          </Descriptions>
+        ) : null}
+      </Modal>
+
+      <Modal
         title={editingItem ? "Edit QC Item" : "Add QC Item"}
         open={open}
         onCancel={resetModal}
@@ -638,7 +729,13 @@ export default function QC() {
           </Form.Item>
 
           <Form.Item name="inspectionType" label="Inspection Type">
-            <Input placeholder="e.g. Dimension / Finish / Weld Check" />
+            <Select placeholder="Select QC stage">
+              {INSPECTION_TYPES.map((t) => (
+                <Option key={t.value} value={t.value}>
+                  {t.label}
+                </Option>
+              ))}
+            </Select>
           </Form.Item>
 
           <Form.Item name="checkedBy" label="Checked By">

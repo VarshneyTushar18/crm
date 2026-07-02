@@ -10,6 +10,7 @@ import {
   List,
   Tag,
   Avatar,
+  Progress,
 } from "antd";
 import {
   ProjectOutlined,
@@ -20,6 +21,8 @@ import {
 } from "@ant-design/icons";
 import axios from "axios";
 import { API_BASE_URL } from '@/config/serverApiConfig';
+import { getCustomerFinancialSummary } from "@/api/extensionApi";
+import { STAGE_LABELS, getWorkflowStageKeys } from "@/config/workflowConfig";
 
 const { Title, Text } = Typography;
 
@@ -39,74 +42,24 @@ const typeColor = (value) => {
   return "default";
 };
 
-const getLatestWorkflowStep = (workflowEvents = {}) => {
-  const stages = [
-    {
-      key: "siteMeasurement",
-      label: "Site Measurement",
+const getLatestWorkflowStep = (workflowEvents = {}, workflowVersion = 1) => {
+  const keys = getWorkflowStageKeys(workflowVersion);
+  const stages = keys.map((key) => {
+    const event = workflowEvents?.[key] || {};
+    return {
+      key,
+      label: STAGE_LABELS[key] || key,
       date:
-        workflowEvents?.siteMeasurement?.completedAt ||
-        workflowEvents?.siteMeasurement?.scheduledDate,
-      done: workflowEvents?.siteMeasurement?.isCompleted,
-    },
-    {
-      key: "drafting",
-      label: "Drafting",
-      date:
-        workflowEvents?.drafting?.completedAt ||
-        workflowEvents?.drafting?.startActual ||
-        workflowEvents?.drafting?.startExpected,
-      done: workflowEvents?.drafting?.isCompleted,
-    },
-    {
-      key: "clientApproval",
-      label: "Client Approval",
-      date:
-        workflowEvents?.clientApproval?.completedAt ||
-        workflowEvents?.clientApproval?.approvalDate,
-      done: workflowEvents?.clientApproval?.isCompleted,
-    },
-    {
-      key: "materialPurchasing",
-      label: "Material Purchasing",
-      date:
-        workflowEvents?.materialPurchasing?.completedAt ||
-        workflowEvents?.materialPurchasing?.requestDate,
-      done: workflowEvents?.materialPurchasing?.isCompleted,
-    },
-    {
-      key: "fabrication",
-      label: "Fabrication",
-      date:
-        workflowEvents?.fabrication?.completedAt ||
-        workflowEvents?.fabrication?.startActualHours,
-      done: workflowEvents?.fabrication?.isCompleted,
-    },
-    {
-      key: "finishing",
-      label: "Finishing & QC",
-      date:
-        workflowEvents?.finishing?.completedAt ||
-        workflowEvents?.finishing?.startActual,
-      done: workflowEvents?.finishing?.isCompleted,
-    },
-    {
-      key: "installation",
-      label: "Installation",
-      date:
-        workflowEvents?.installation?.completedAt ||
-        workflowEvents?.installation?.scheduledDate,
-      done: workflowEvents?.installation?.isCompleted,
-    },
-    {
-      key: "jobCompletion",
-      label: "Job Completion",
-      date:
-        workflowEvents?.jobCompletion?.completedAt ||
-        workflowEvents?.jobCompletion?.completionDate,
-      done: workflowEvents?.jobCompletion?.isCompleted,
-    },
-  ];
+        event?.completedAt ||
+        event?.completionDate ||
+        event?.startActual ||
+        event?.approvalDate ||
+        event?.requestDate ||
+        event?.scheduledDate ||
+        null,
+      done: !!event?.isCompleted,
+    };
+  });
 
   for (let i = stages.length - 1; i >= 0; i--) {
     const s = stages[i];
@@ -122,6 +75,7 @@ export default function CustomerDashboard() {
   const [loading, setLoading] = useState(true);
   const [customer, setCustomer] = useState(null);
   const [projects, setProjects] = useState([]);
+  const [financial, setFinancial] = useState(null);
 
   useEffect(() => {
     fetchDashboardData();
@@ -157,6 +111,13 @@ export default function CustomerDashboard() {
         setProjects(Array.isArray(result) ? result : []);
       } else {
         setProjects([]);
+      }
+
+      try {
+        const fin = await getCustomerFinancialSummary();
+        setFinancial(fin || null);
+      } catch {
+        setFinancial(null);
       }
     } catch (error) {
       console.error("Failed to load customer dashboard:", error);
@@ -316,7 +277,10 @@ export default function CustomerDashboard() {
                 itemLayout="horizontal"
                 dataSource={latestProjects}
                 renderItem={(item) => {
-                  const latestStep = getLatestWorkflowStep(item?.workflowEvents || {});
+                  const latestStep = getLatestWorkflowStep(
+                    item?.workflowEvents || {},
+                    item?.workflowVersion || 1
+                  );
 
                   return (
                     <List.Item>
@@ -343,6 +307,9 @@ export default function CustomerDashboard() {
                             <Tag color={latestStep.done ? "success" : "processing"}>
                               {latestStep.label}
                             </Tag>
+                            <Tag>
+                              {Number(item?.completionPercent ?? 0)}%
+                            </Tag>
                           </div>
                         }
                         description={
@@ -350,6 +317,11 @@ export default function CustomerDashboard() {
                             <Text type="secondary">
                               Address: {item?.address || item?.site || "—"}
                             </Text>
+                            <Progress
+                              percent={Number(item?.completionPercent ?? 0)}
+                              size="small"
+                              style={{ maxWidth: 240 }}
+                            />
                             <Text type="secondary">
                               Latest Timeline Update: {latestStep.label}
                               {latestStep.date
@@ -376,6 +348,39 @@ export default function CustomerDashboard() {
         </Col>
 
         <Col xs={24} xl={8}>
+          <Card
+            title="Financial Summary"
+            bordered={false}
+            style={{ borderRadius: 16, marginBottom: 16 }}
+          >
+            <div style={{ display: "grid", gap: 10 }}>
+              <div>
+                <Text type="secondary">Contract Total</Text>
+                <div style={{ fontWeight: 600 }}>
+                  ₹ {Number(financial?.contractTotal || 0).toFixed(2)}
+                </div>
+              </div>
+              <div>
+                <Text type="secondary">Total Invoiced</Text>
+                <div style={{ fontWeight: 600 }}>
+                  ₹ {Number(financial?.totalInvoiced || 0).toFixed(2)}
+                </div>
+              </div>
+              <div>
+                <Text type="secondary">Total Paid</Text>
+                <div style={{ fontWeight: 600 }}>
+                  ₹ {Number(financial?.totalPaid || 0).toFixed(2)}
+                </div>
+              </div>
+              <div>
+                <Text type="secondary">Outstanding Balance</Text>
+                <div style={{ fontWeight: 600, color: "#fa8c16" }}>
+                  ₹ {Number(financial?.outstandingBalance || 0).toFixed(2)}
+                </div>
+              </div>
+            </div>
+          </Card>
+
           <Card
             title="Portal Overview"
             bordered={false}

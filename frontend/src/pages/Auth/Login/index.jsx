@@ -1,20 +1,69 @@
 import { useState } from "react";
-import { Card, Form, Input, Button, Radio, Typography, message } from "antd";
+import { Card, Form, Input, Button, Typography, message } from "antd";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useDispatch } from "react-redux";
-import { UserOutlined, LockOutlined, IdcardOutlined, MailOutlined } from "@ant-design/icons";
-import { API_BASE_URL } from '@/config/serverApiConfig';
+import {
+  UserOutlined,
+  LockOutlined,
+  IdcardOutlined,
+  MailOutlined,
+  SafetyCertificateOutlined,
+  TeamOutlined,
+  AuditOutlined,
+} from "@ant-design/icons";
+import BrandLogo from "@/components/BrandLogo";
+import { API_BASE_URL } from "@/config/serverApiConfig";
+import "./login.css";
 
 const { Title, Text } = Typography;
 
 const API = `${API_BASE_URL}/auth/login`;
 
+const ROLE_OPTIONS = [
+  {
+    value: "admin",
+    label: "Admin",
+    hint: "Full access",
+    description: "Manage leads, jobs, settings, and all modules.",
+    icon: <SafetyCertificateOutlined />,
+  },
+  {
+    value: "siteEngineer",
+    label: "Site Engineer",
+    hint: "Approvals",
+    description: "Review drawings and approve jobs created by admin.",
+    icon: <AuditOutlined />,
+  },
+  {
+    value: "worker",
+    label: "Employee",
+    hint: "Field staff",
+    description: "Sign in with worker ID or email for assigned tasks.",
+    icon: <TeamOutlined />,
+  },
+  {
+    value: "customer",
+    label: "Customer",
+    hint: "Portal",
+    description: "View project progress, quotes, and invoices.",
+    icon: <UserOutlined />,
+  },
+];
+
 export default function Login() {
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState("admin");
+  const [form] = Form.useForm();
   const navigate = useNavigate();
   const dispatch = useDispatch();
+
+  const activeRole = ROLE_OPTIONS.find((r) => r.value === role) || ROLE_OPTIONS[0];
+
+  const selectRole = (nextRole) => {
+    setRole(nextRole);
+    form.setFieldsValue({ role: nextRole });
+  };
 
   const onFinish = async (values) => {
     try {
@@ -80,6 +129,7 @@ export default function Login() {
       message.success("Login successful");
 
       if (user.role === "admin") navigate("/admin/dashboard", { replace: true });
+      else if (user.role === "siteEngineer") navigate("/admin/site-engineer", { replace: true });
       else if (user.role === "worker") navigate("/worker", { replace: true });
       else navigate("/portal", { replace: true });
     } catch (err) {
@@ -92,68 +142,65 @@ export default function Login() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "20px",
-        background: "#f0f2f5",
-      }}
-    >
-      <Card 
-        style={{ 
-          width: "100%",
-          maxWidth: 400, 
-          borderRadius: 12,
-          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
-        }}
-        bodyStyle={{ padding: "32px 24px" }}
-      >
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <Title level={2} style={{ marginBottom: 4, color: "#1677ff" }}>
-            Bright CRM
-          </Title>
-          <Text type="secondary">Sign in to your account</Text>
+    <div className="login-page">
+      <Card className="login-card" bordered={false}>
+        <div className="login-brand">
+          <BrandLogo variant="login" />
+          <Text type="secondary" style={{ display: "block", marginTop: 12 }}>
+            Sign in to your account
+          </Text>
         </div>
 
-        <Form 
-          layout="vertical" 
-          onFinish={onFinish} 
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={onFinish}
           initialValues={{ role: "admin" }}
           requiredMark={false}
         >
-          <Form.Item
-            name="role"
-            rules={[{ required: true, message: "Please select your role" }]}
-            style={{ marginBottom: 24 }}
-          >
-            <Radio.Group 
-              onChange={(e) => setRole(e.target.value)} 
-              buttonStyle="solid" 
-              style={{ width: "100%", display: "flex" }}
-            >
-              <Radio.Button value="admin" style={{ flex: 1, textAlign: "center" }}>Admin</Radio.Button>
-              <Radio.Button value="worker" style={{ flex: 1, textAlign: "center" }}>Employee</Radio.Button>
-              <Radio.Button value="customer" style={{ flex: 1, textAlign: "center" }}>Customer</Radio.Button>
-            </Radio.Group>
+          <Form.Item name="role" hidden>
+            <Input />
           </Form.Item>
 
+          <span className="login-role-label">I am signing in as</span>
+          <div className="login-role-grid" role="radiogroup" aria-label="Sign-in role">
+            {ROLE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={role === option.value}
+                className={`login-role-tile${role === option.value ? " login-role-tile--active" : ""}`}
+                onClick={() => selectRole(option.value)}
+              >
+                <span className="login-role-tile__icon">{option.icon}</span>
+                <span className="login-role-tile__name">{option.label}</span>
+                <span className="login-role-tile__hint">{option.hint}</span>
+              </button>
+            ))}
+          </div>
+          <Text className="login-role-desc">{activeRole.description}</Text>
+
           <Form.Item
-            label={role === "worker" ? "Worker ID" : "Email Address"}
+            label={role === "worker" ? "Worker ID or Email" : "Email Address"}
             name="identifier"
             rules={[
               {
                 required: true,
-                message: role === "worker" ? "Please enter your Worker ID" : "Please enter your email",
+                message:
+                  role === "worker"
+                    ? "Please enter your worker ID or email"
+                    : "Please enter your email",
               },
             ]}
           >
-            <Input 
+            <Input
               prefix={role === "worker" ? <IdcardOutlined /> : <MailOutlined />}
-              placeholder={role === "worker" ? "e.g. WRK-001" : "name@email.com"} 
+              placeholder={
+                role === "worker" ? "e.g. W-1001 or worker@crm.com" : "name@email.com"
+              }
               size="large"
+              autoComplete="username"
             />
           </Form.Item>
 
@@ -163,14 +210,15 @@ export default function Login() {
             rules={[{ required: true, message: "Please enter your password" }]}
             style={{ marginBottom: 8 }}
           >
-            <Input.Password 
+            <Input.Password
               prefix={<LockOutlined />}
-              placeholder="Enter password" 
+              placeholder="Enter password"
               size="large"
+              autoComplete="current-password"
             />
           </Form.Item>
 
-          <div style={{ textAlign: "right", marginBottom: 24 }}>
+          <div style={{ textAlign: "right", marginBottom: 20 }}>
             <Text
               style={{ cursor: "pointer", color: "#1677ff" }}
               onClick={() => navigate("/forgot-password")}
@@ -179,25 +227,39 @@ export default function Login() {
             </Text>
           </div>
 
-          <Button 
-            type="primary" 
-            htmlType="submit" 
-            loading={loading} 
-            block 
+          <Button
+            type="primary"
+            htmlType="submit"
+            loading={loading}
+            block
             size="large"
-            style={{ height: 45, fontWeight: 600 }}
+            style={{ height: 46, fontWeight: 600, borderRadius: 8 }}
           >
             Sign In
           </Button>
 
-          <div style={{ marginTop: 24, textAlign: "center" }}>
-            <Text type="secondary">
-              Don't have a customer account?{" "}
+          {role === "customer" ? (
+            <div className="login-footer">
+              <Text type="secondary">
+                Don&apos;t have an account?{" "}
+                <span
+                  style={{ cursor: "pointer", color: "#1677ff", fontWeight: 500 }}
+                  onClick={() => navigate("/register")}
+                >
+                  Sign Up
+                </span>
+              </Text>
+            </div>
+          ) : null}
+
+          <div className="login-portal-link">
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Customer? You can also use the{" "}
               <span
                 style={{ cursor: "pointer", color: "#1677ff", fontWeight: 500 }}
-                onClick={() => navigate("/register")}
+                onClick={() => navigate("/portal/login")}
               >
-                Sign Up
+                dedicated portal login
               </span>
             </Text>
           </div>

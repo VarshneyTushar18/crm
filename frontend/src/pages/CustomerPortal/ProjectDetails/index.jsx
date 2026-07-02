@@ -8,10 +8,12 @@ import {
   Col,
   Timeline,
   message,
+  Progress,
   Spin,
 } from "antd";
 import { useNavigate, useParams } from "react-router-dom";
 import { customerGetProjectById } from "../customerApi";
+import { STAGE_LABELS, getTimelineStageKeys, calcStageCompletionPercent } from "@/config/workflowConfig";
 
 const stateColor = (value) => {
   const s = String(value || "").toLowerCase();
@@ -91,53 +93,64 @@ export default function CustomerProjectDetails() {
   }, [id]);
 
   const timelineItems = useMemo(() => {
-    const wf = project?.workflowEvents || {};
+    if (Array.isArray(project?.timeline) && project.timeline.length > 0) {
+      return project.timeline.map((stage) => {
+        const status =
+          stage.isCompleted || stage.stageStatus === "Complete"
+            ? "Completed"
+            : stage.stageStatus || "Pending";
+        const stagePercent =
+          stage.completionPercent ??
+          calcStageCompletionPercent({
+            isCompleted: stage.isCompleted,
+            stageStatus: stage.stageStatus,
+          });
 
-    const stages = [
-      {
-        key: "siteMeasurement",
-        title: "Site Measurement",
-        data: wf.siteMeasurement || {},
-      },
-      {
-        key: "drafting",
-        title: "Drafting",
-        data: wf.drafting || {},
-      },
-      {
-        key: "clientApproval",
-        title: "Client Approval",
-        data: wf.clientApproval || {},
-      },
-      {
-        key: "materialPurchasing",
-        title: "Material Purchasing",
-        data: wf.materialPurchasing || {},
-      },
-      {
-        key: "fabrication",
-        title: "Fabrication",
-        data: wf.fabrication || {},
-      },
-      {
-        key: "finishing",
-        title: "Finishing & QC",
-        data: wf.finishing || {},
-      },
-      {
-        key: "installation",
-        title: "Installation",
-        data: wf.installation || {},
-      },
-      {
-        key: "jobCompletion",
-        title: "Job Completion & Sign-Off",
-        data: wf.jobCompletion || {},
-      },
-    ];
+        return {
+          color:
+            status === "Completed"
+              ? "green"
+              : status === "In Progress"
+              ? "blue"
+              : "gray",
+          children: (
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                {stage.order ? `${stage.order}. ` : ""}
+                {stage.title}{" "}
+                <Tag color={stagePercent >= 100 ? "success" : stagePercent > 0 ? "processing" : "default"}>
+                  {stagePercent}%
+                </Tag>
+              </div>
+              <Progress
+                percent={stagePercent}
+                size="small"
+                style={{ maxWidth: 280, marginBottom: 8 }}
+              />
+              <Tag color={getStageColor(status)}>{status}</Tag>
+              {stage.completedAt ? (
+                <div style={{ marginTop: 8, opacity: 0.7, fontSize: 12 }}>
+                  {formatDate(stage.completedAt)}
+                </div>
+              ) : null}
+            </div>
+          ),
+        };
+      });
+    }
+
+    const wf = project?.workflowEvents || {};
+    const keys = getTimelineStageKeys(project?.workflowVersion || 2);
+
+    const stages = keys.map((key) => ({
+      key,
+      title: STAGE_LABELS[key] || key,
+      data: wf[key] || {},
+    }));
 
     return stages.map((stage) => {
       const status = getStageStatus(stage.data);
+      const stagePercent = calcStageCompletionPercent(stage.data);
 
       const importantDate =
         stage.data?.completedAt ||
@@ -157,7 +170,17 @@ export default function CustomerProjectDetails() {
             : "gray",
         children: (
           <div>
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>{stage.title}</div>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>
+              {stage.title}{" "}
+              <Tag color={stagePercent >= 100 ? "success" : stagePercent > 0 ? "processing" : "default"}>
+                {stagePercent}%
+              </Tag>
+            </div>
+            <Progress
+              percent={stagePercent}
+              size="small"
+              style={{ maxWidth: 280, marginBottom: 8 }}
+            />
             <Tag color={getStageColor(status)}>{status}</Tag>
             {importantDate ? (
               <div style={{ marginTop: 8, opacity: 0.7, fontSize: 12 }}>
@@ -172,9 +195,9 @@ export default function CustomerProjectDetails() {
 
   if (loading) {
     return (
-      <div style={{ padding: 16 }}>
+      <div style={{ padding: 16, textAlign: "center" }}>
         <Card>
-          <Spin />
+          <Spin size="large" />
         </Card>
       </div>
     );
@@ -202,6 +225,12 @@ export default function CustomerProjectDetails() {
             extra={<Button onClick={() => navigate("/portal/projects")}>Back</Button>}
           >
             <Descriptions bordered size="small" column={2}>
+              <Descriptions.Item label="Overall Progress" span={2}>
+                <Progress percent={project?.completionPercent || 0} size="small" />
+                <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
+                  Based on completed workflow stages
+                </div>
+              </Descriptions.Item>
               <Descriptions.Item label="Project ID">
                 {project?.jobId || "—"}
               </Descriptions.Item>
@@ -252,7 +281,40 @@ export default function CustomerProjectDetails() {
         </Col>
 
         <Col xs={24} md={10}>
-          <Card title="Financial Summary">
+          {project?.quote ? (
+            <Card
+              title="Project Quote"
+              extra={
+                <Button
+                  type="link"
+                  onClick={() => navigate(`/portal/quotes/${project.quote._id}`)}
+                >
+                  View Full Quote
+                </Button>
+              }
+            >
+              <Descriptions bordered size="small" column={1}>
+                <Descriptions.Item label="Quote #">
+                  {project.quote.quoteNumber || "—"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Status">
+                  <Tag color={project.quote.status === "Accepted" ? "success" : "processing"}>
+                    {project.quote.status || "—"}
+                  </Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="Amount">
+                  ₹ {Number(project.quote.totalAmount || 0).toFixed(2)}
+                </Descriptions.Item>
+                <Descriptions.Item label="Valid Until">
+                  {project.quote.validUntil
+                    ? new Date(project.quote.validUntil).toLocaleDateString()
+                    : "—"}
+                </Descriptions.Item>
+              </Descriptions>
+            </Card>
+          ) : null}
+
+          <Card title="Financial Summary" style={{ marginTop: project?.quote ? 12 : 0 }}>
             <Descriptions bordered size="small" column={1}>
               <Descriptions.Item label="Locked Value">
                 ₹ {Number(project?.lockedValue || 0).toFixed(2)}
@@ -263,11 +325,8 @@ export default function CustomerProjectDetails() {
               <Descriptions.Item label="Total Paid">
                 ₹ {Number(project?.totalPaid || 0).toFixed(2)}
               </Descriptions.Item>
-              <Descriptions.Item label="Balance Due">
-                ₹{" "}
-                {Number(
-                  (project?.totalInvoiced || 0) - (project?.totalPaid || 0)
-                ).toFixed(2)}
+              <Descriptions.Item label="Outstanding Balance">
+                ₹ {Number(project?.outstandingBalance ?? ((project?.totalInvoiced || 0) - (project?.totalPaid || 0))).toFixed(2)}
               </Descriptions.Item>
             </Descriptions>
           </Card>

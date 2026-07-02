@@ -19,7 +19,9 @@ export const createJob = async (payload) => {
 };
 
 export const createJobFromLead = async (leadId) => {
-  const res = await axios.post(`${API}/from-lead/${leadId}`, {}, { headers: { ...authHeaders() } });
+  const res = await axios.post(`${API_BASE_URL}/lead/convert-to-job/${leadId}`, {}, {
+    headers: { ...authHeaders() },
+  });
   return res.data;
 };
 

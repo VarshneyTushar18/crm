@@ -35,3 +35,15 @@ export const deleteDraftingRecord = async (id) => {
   });
   return res.data?.result || null;
 };
+
+export const uploadDraftingPdf = async (id, file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await axios.post(`${API}/upload/${id}`, formData, {
+    headers: {
+      ...authHeaders(),
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return res.data?.result || null;
+};

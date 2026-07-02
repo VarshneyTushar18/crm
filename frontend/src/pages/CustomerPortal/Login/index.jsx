@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Card, Form, Input, Button, message, Typography } from "antd";
 import { useNavigate, useLocation } from "react-router-dom";
+import BrandLogo from "@/components/BrandLogo";
 import { customerLogin } from "../../../api/customerPortalApi";
 import { useCustomerAuth } from "../../../context/CustomerAuthContext";
 
@@ -71,7 +72,10 @@ export default function CustomerLogin() {
           borderRadius: 12,
         }}
       >
-        <Title level={3} style={{ marginBottom: 4 }}>
+        <div style={{ textAlign: "center", marginBottom: 16 }}>
+          <BrandLogo variant="login" />
+        </div>
+        <Title level={3} style={{ marginBottom: 4, textAlign: "center" }}>
           Customer Login
         </Title>
         <Text type="secondary">

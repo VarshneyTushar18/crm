@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, Table, Tag, Input, Button, message } from "antd";
+import { Card, Table, Tag, Input, Button, message, Progress } from "antd";
 import { useNavigate } from "react-router-dom";
 import { customerGetProjects } from "../customerApi";
 
@@ -85,6 +85,14 @@ export default function CustomerProjects() {
       title: "Address",
       key: "address",
       render: (_, row) => row?.address || row?.site || "—",
+    },
+    {
+      title: "Progress",
+      key: "completionPercent",
+      width: 140,
+      render: (_, row) => (
+        <Progress percent={Number(row?.completionPercent ?? row?.autoCompletionPercent ?? 0)} size="small" />
+      ),
     },
     {
       title: "State",

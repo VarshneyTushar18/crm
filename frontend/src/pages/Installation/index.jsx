@@ -45,7 +45,9 @@ import {
   saveInstallationSummary,
   markInstallationComplete,
   finalizeJobCompletion,
+  uploadInstallationActivityFiles,
 } from "./installationApi";
+import SendForSiteEngineerButton from "@/components/SendForSiteEngineerButton";
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -431,7 +433,7 @@ export default function Installation() {
     } catch (err) {
       console.error(err);
       if (err?.errorFields) return;
-      message.error("Failed to save installation activity");
+      message.error(err?.response?.data?.message || "Failed to save installation activity");
     } finally {
       setSaving(false);
     }
@@ -507,7 +509,7 @@ export default function Installation() {
       await loadInstallationData(selectedJob._id);
     } catch (err) {
       console.error(err);
-      message.error("Failed to mark installation complete");
+      message.error(err?.response?.data?.message || "Failed to mark installation complete");
     } finally {
       setSaving(false);
     }
@@ -702,6 +704,15 @@ export default function Installation() {
                 >
                   Back to Jobs
                 </Button>
+
+                <SendForSiteEngineerButton
+                  jobId={selectedJob?._id}
+                  stageKey="installation"
+                  workflowEvents={selectedJob?.workflowEvents}
+                  disabled={!items.length}
+                  disabledReason="Add at least one installation activity first"
+                  onSent={(job) => job && setSelectedJob(job)}
+                />
 
                 <Button
                   type="primary"
@@ -1071,6 +1082,47 @@ export default function Installation() {
                 <TextArea rows={4} placeholder="Enter work remarks" />
               </Form.Item>
             </Col>
+
+            {editingItem?._id ? (
+              <Col xs={24}>
+                <Form.Item label="Photos (required to mark Completed)">
+                  <Upload
+                    multiple
+                    beforeUpload={() => false}
+                    onChange={async (info) => {
+                      const files = info.fileList
+                        .map((f) => f.originFileObj)
+                        .filter(Boolean);
+                      if (!files.length) return;
+                      try {
+                        const updated = await uploadInstallationActivityFiles(
+                          editingItem._id,
+                          files
+                        );
+                        setEditingItem(updated);
+                        message.success("Photos uploaded");
+                        if (selectedJob?._id) {
+                          await loadInstallationData(selectedJob._id);
+                        }
+                      } catch (err) {
+                        message.error(err?.response?.data?.message || "Upload failed");
+                      }
+                    }}
+                  >
+                    <Button icon={<UploadOutlined />}>Upload photos</Button>
+                  </Upload>
+                  {(editingItem.photoUrls || []).length > 0 ? (
+                    <div style={{ marginTop: 8, fontSize: 12, color: "#666" }}>
+                      {editingItem.photoUrls.length} file(s) attached
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 8, fontSize: 12, color: "#cf1322" }}>
+                      No photos yet — upload before marking activity complete
+                    </div>
+                  )}
+                </Form.Item>
+              </Col>
+            ) : null}
           </Row>
         </Form>
       </Modal>

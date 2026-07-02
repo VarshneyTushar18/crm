@@ -6,7 +6,11 @@ import { useAppContext } from "@/context/appContext";
 import useLanguage from "@/locale/useLanguage";
 import useResponsive from "@/hooks/useResponsive";
 
-import logoIcon from "@/style/images/logo-icon.png";
+import BrandLogo from "@/components/BrandLogo";
+import {
+  SITE_ENGINEER_MENU_KEYS,
+  SITE_ENGINEER_HOME,
+} from "@/config/siteEngineerAccess";
 
 import {
   SettingOutlined,
@@ -29,9 +33,69 @@ import {
   TeamOutlined,
   BuildOutlined,
   MailOutlined,
+  CalendarOutlined,
+  AuditOutlined,
 } from "@ant-design/icons";
 
 const { Sider } = Layout;
+
+const getStoredUserRole = () => {
+  try {
+    return JSON.parse(localStorage.getItem("user"))?.role || "admin";
+  } catch {
+    return "admin";
+  }
+};
+
+const getSiteEngineerItems = (go) => [
+  {
+    key: "jobs",
+    icon: <FileOutlined />,
+    label: <Link to={go("/jobs")}>Assigned Jobs</Link>,
+  },
+  {
+    key: "scheduling",
+    icon: <CalendarOutlined />,
+    label: <Link to={go("/scheduling")}>Scheduling</Link>,
+  },
+  {
+    key: "fabrication",
+    icon: <TagsOutlined />,
+    label: <Link to={go("/fabrication")}>Fabrication</Link>,
+  },
+  {
+    key: "qc",
+    icon: <ContainerOutlined />,
+    label: <Link to={go("/qc")}>Quality Check</Link>,
+  },
+  {
+    key: "installation",
+    icon: <ShopOutlined />,
+    label: <Link to={go("/installation")}>Installation</Link>,
+  },
+  {
+    key: "site-engineer",
+    icon: <AuditOutlined />,
+    label: <Link to={go("/site-engineer")}>Approvals</Link>,
+  },
+];
+
+const filterMenuForRole = (items, role) => {
+  if (role !== "siteEngineer") return items;
+
+  return items
+    .map((item) => {
+      if (!item.children) {
+        return SITE_ENGINEER_MENU_KEYS.has(item.key) ? item : null;
+      }
+
+      const children = item.children.filter((child) => SITE_ENGINEER_MENU_KEYS.has(child.key));
+      if (!children.length) return null;
+
+      return { ...item, children };
+    })
+    .filter(Boolean);
+};
 
 export default function Navigation({
   basePath = "",
@@ -73,16 +137,21 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
   const { isNavMenuClose } = stateApp;
   const { navMenu } = appContextAction;
 
-  const [showLogoApp, setLogoApp] = useState(isNavMenuClose);
   const [currentPath, setCurrentPath] = useState("dashboard");
   const [openKeys, setOpenKeys] = useState([]);
 
   const translate = useLanguage();
+  const userRole = getStoredUserRole();
 
   const go = (p) => `${basePath}${p}`;
 
   const items = useMemo(
-    () => [
+    () => {
+      if (userRole === "siteEngineer") {
+        return getSiteEngineerItems(go);
+      }
+      return filterMenuForRole(
+        [
       {
         key: "dashboard",
         icon: <DashboardOutlined />,
@@ -126,9 +195,19 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
             label: <Link to={go("/planning")}>Planning</Link>,
           },
           {
+            key: "scheduling",
+            icon: <CalendarOutlined />,
+            label: <Link to={go("/scheduling")}>Scheduling</Link>,
+          },
+          {
             key: "drafting",
             icon: <FileTextOutlined />,
             label: <Link to={go("/drafting")}>Drafting</Link>,
+          },
+          {
+            key: "site-engineer",
+            icon: <AuditOutlined />,
+            label: <Link to={go("/site-engineer")}>SE Approvals</Link>,
           },
         ],
       },
@@ -187,6 +266,26 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
             label: <Link to={go("/contact-requests")}>Contact Requests</Link>,
           },
           {
+            key: "suppliers",
+            icon: <ShopOutlined />,
+            label: <Link to={go("/suppliers")}>Suppliers</Link>,
+          },
+          {
+            key: "rfq",
+            icon: <FileTextOutlined />,
+            label: <Link to={go("/rfq")}>RFQ</Link>,
+          },
+          {
+            key: "purchase-orders",
+            icon: <ContainerOutlined />,
+            label: <Link to={go("/purchase-orders")}>Purchase Orders</Link>,
+          },
+          {
+            key: "sites",
+            icon: <DeploymentUnitOutlined />,
+            label: <Link to={go("/sites")}>Sites</Link>,
+          },
+          {
             key: "invoice",
             icon: <ContainerOutlined />,
             label: <Link to={go("/invoice")}>Invoices</Link>,
@@ -213,6 +312,11 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
             icon: <UserOutlined />,
             label: <Link to={go("/attendance")}>Attendance</Link>,
           },
+          {
+            key: "leave",
+            icon: <CalendarOutlined />,
+            label: <Link to={go("/leave")}>Leave</Link>,
+          },
         ],
       },
       {
@@ -233,7 +337,10 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
         ],
       },
     ],
-    [basePath, translate]
+        userRole
+      );
+    },
+    [basePath, translate, userRole]
   );
 
   const pathToGroupMap = {
@@ -243,7 +350,9 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
     jobs: "sales-group",
     "site-measurement": "planning-group",
     planning: "planning-group",
+    scheduling: "planning-group",
     drafting: "planning-group",
+    "site-engineer": "planning-group",
     "job-scheduling": "production-group",
     "material-purchase": "production-group",
     fabrication: "production-group",
@@ -255,6 +364,7 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
     payment: "business-group",
     employee: "hr-group",
     attendance: "hr-group",
+    leave: "hr-group",
     settings: "system-group",
     about: "system-group",
   };
@@ -290,12 +400,6 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
     }
   }, [location.pathname, basePath]);
 
-  useEffect(() => {
-    if (isNavMenuClose) setLogoApp(true);
-    const timer = setTimeout(() => setLogoApp(isNavMenuClose), 200);
-    return () => clearTimeout(timer);
-  }, [isNavMenuClose]);
-
   const onCollapse = () => navMenu.collapse();
 
   return (
@@ -315,18 +419,13 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
         className="logo"
         onClick={() => {
           onNavigate?.();
-          navigate(go("/"));
+          const role = getStoredUserRole();
+          navigate(role === "siteEngineer" ? SITE_ENGINEER_HOME : go("/"));
         }}
         style={{ cursor: "pointer" }}
       >
-        <img
-          src={logoIcon}
-          alt="Tech2Globe"
-          style={{
-            height: "42px",
-            maxWidth: "190px",
-            objectFit: "contain",
-          }}
+        <BrandLogo
+          variant={isNavMenuClose ? "sidebarCollapsed" : "sidebar"}
         />
       </div>
       <Menu

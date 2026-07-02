@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Card, Form, Input, Button, Typography, message } from "antd";
+import BrandLogo from "@/components/BrandLogo";
 import { Link } from "react-router-dom";
 import { forgotPasswordApi } from "../Login/authApi";
 
@@ -26,6 +27,9 @@ export default function ForgotPassword() {
   return (
     <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#0b1220", padding: 16 }}>
       <Card style={{ width: 420, borderRadius: 14 }}>
+        <div style={{ textAlign: "center", marginBottom: 16 }}>
+          <BrandLogo variant="login" />
+        </div>
         <div style={{ marginBottom: 12 }}>
           <Title level={3} style={{ margin: 0 }}>Forgot Password</Title>
           <Text type="secondary">Enter your email to receive reset link</Text>

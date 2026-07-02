@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { Card, Table, Tag, Button, Modal, Form, Input, DatePicker, Select, message, Space, Typography } from "antd";
-import { DollarOutlined, InfoCircleOutlined, CheckCircleOutlined, SyncOutlined } from "@ant-design/icons";
+import { DollarOutlined, EyeOutlined, SyncOutlined } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
 import { customerGetInvoices, customerNotifyPayment } from "../customerApi";
 import dayjs from "dayjs";
 
 const { Text } = Typography;
 
 export default function CustomerInvoices() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [invoices, setInvoices] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -80,25 +82,35 @@ export default function CustomerInvoices() {
     {
       title: "Action",
       key: "action",
-      render: (_, record) => {
-        if (record.status === "Paid") return <Tag color="success">Fully Paid</Tag>;
-        if (record.paymentNotified) return <Text type="secondary">Admin is verifying...</Text>;
-        
-        return (
-          <Button 
-            type="primary" 
-            size="small" 
-            icon={<DollarOutlined />}
-            onClick={() => {
-              setSelectedInvoice(record);
-              setIsModalOpen(true);
-            }}
+      render: (_, record) => (
+        <Space wrap>
+          <Button
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => navigate(`/portal/invoices/${record._id}`)}
           >
-            Mark as Paid
+            View
           </Button>
-        );
-      }
-    }
+          {record.status === "Paid" ? (
+            <Tag color="success">Fully Paid</Tag>
+          ) : record.paymentNotified ? (
+            <Text type="secondary">Admin is verifying...</Text>
+          ) : (
+            <Button
+              type="primary"
+              size="small"
+              icon={<DollarOutlined />}
+              onClick={() => {
+                setSelectedInvoice(record);
+                setIsModalOpen(true);
+              }}
+            >
+              Mark as Paid
+            </Button>
+          )}
+        </Space>
+      ),
+    },
   ];
 
   return (

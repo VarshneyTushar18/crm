@@ -20,6 +20,12 @@ export const ACCESS_TOKEN_NAME = 'x-auth-token';
 
 export const FILE_BASE_URL = import.meta.env.VITE_FILE_BASE_URL || BACKEND;
 
-//  console.log(
-//    '🚀 Welcome to IDURAR ERP CRM! Did you know that we also offer commercial customization services? Contact us at hello@idurarapp.com for more information.'
-//  );
+/** Build absolute URL for uploaded files (/uploads/...) */
+export const buildFileUrl = (fileUrl = "") => {
+  if (!fileUrl) return "";
+  if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) {
+    return fileUrl;
+  }
+  const base = FILE_BASE_URL.endsWith("/") ? FILE_BASE_URL : `${FILE_BASE_URL}/`;
+  return `${base}${String(fileUrl).replace(/^\//, "")}`;
+};

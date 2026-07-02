@@ -1,11 +1,22 @@
-import { useEffect, useState } from "react";
-import { Button, Table, Space, Popconfirm, Select, Tag, message } from "antd";
+import { useEffect, useMemo, useState } from "react";
+import { Button, Table, Space, Popconfirm, Select, Tag, message, DatePicker, Dropdown } from "antd";
+import { DownloadOutlined, DownOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 
 import dayjs from "dayjs";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 import LeadForm from "./LeadForm";
 import { getLeads, createLead, updateLead, deleteLead } from "./leadApi";
+import { getLeadSiteAddress } from "./leadAddressUtils";
+import {
+  exportLeads,
+  filterLeadsByDateRange,
+  getLeadPhonesList,
+  LEAD_EXPORT_FORMATS,
+  buildLeadRangeLabel,
+} from "./leadExportUtils";
+
+const { RangePicker } = DatePicker;
 
 dayjs.extend(isSameOrBefore);
 
@@ -33,6 +44,8 @@ export default function Lead() {
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [editData, setEditData] = useState(null);
+  const [dateRange, setDateRange] = useState(null);
+  const [dateField, setDateField] = useState("createdAt");
 
   const navigate = useNavigate();
 
@@ -88,6 +101,41 @@ export default function Lead() {
     }
   };
 
+  const getLeadPhones = (record) => getLeadPhonesList(record);
+
+  const filteredLeads = useMemo(
+    () => filterLeadsByDateRange(leads, dateRange, dateField),
+    [leads, dateRange, dateField]
+  );
+
+  const handleExportLeads = (format = "csv") => {
+    if (!filteredLeads.length) {
+      message.warning("No leads found in selected date range");
+      return;
+    }
+
+    const rangeLabel = buildLeadRangeLabel(dateRange);
+    exportLeads(filteredLeads, format, "leads", rangeLabel);
+
+    const formatLabel =
+      LEAD_EXPORT_FORMATS.find((item) => item.key === format)?.label || format.toUpperCase();
+    message.success(`Exported ${filteredLeads.length} lead(s) as ${formatLabel}`);
+  };
+
+  const openWhatsApp = (record) => {
+    const phones = getLeadPhones(record);
+    const target = phones.find((p) => p.isPrimary) || phones[0];
+    if (!target?.number) {
+      message.warning("No phone number found for this lead");
+      return;
+    }
+    const onlyDigits = String(target.number).replace(/[^\d+]/g, "");
+    const text = encodeURIComponent(
+      `Hi ${record.contactPerson || record.clientName || ""}, this is regarding your project enquiry.`
+    );
+    window.open(`https://wa.me/${onlyDigits}?text=${text}`, "_blank", "noopener,noreferrer");
+  };
+
   // ✅ Lead -> Quote (Correct flow as per PPT/SOW)
   const handleCreateQuote = (leadRecord) => {
     navigate("/admin/quotes/create", {
@@ -97,8 +145,16 @@ export default function Lead() {
 
   const columns = [
     { title: "Client Name", dataIndex: "clientName" },
-    { title: "Contact", render: (_, r) => `${r.phone || ""}${r.email ? ` | ${r.email}` : ""}` },
-    { title: "Job Location", dataIndex: "siteAddress" },
+    {
+      title: "Contact",
+      render: (_, r) => {
+        const phones = getLeadPhones(r);
+        const primary = phones.find((p) => p.isPrimary) || phones[0];
+        const more = Math.max(0, phones.length - 1);
+        return `${primary?.number || r.phone || ""}${more ? ` (+${more})` : ""}${r.email ? ` | ${r.email}` : ""}`;
+      },
+    },
+    { title: "Job Location", render: (_, r) => getLeadSiteAddress(r) || "-" },
     { title: "Category", dataIndex: "category" },
     { 
       title: "Salesperson", 
@@ -171,6 +227,8 @@ export default function Lead() {
                 Edit
               </Button>
 
+              <Button onClick={() => openWhatsApp(record)}>Message</Button>
+
               <Popconfirm title="Delete lead?" onConfirm={() => handleDelete(record._id)}>
                 <Button danger>Delete</Button>
               </Popconfirm>
@@ -190,21 +248,61 @@ export default function Lead() {
     <div>
       <h2>Lead Generation & Qualification</h2>
 
-      <Button
-        type="primary"
-        style={{ marginBottom: 16 }}
-        onClick={() => {
-          setEditData(null);
-          setOpen(true);
-        }}
-      >
-        + Add Lead
-      </Button>
+      <Space style={{ marginBottom: 16 }} wrap align="center">
+        <Button
+          type="primary"
+          onClick={() => {
+            setEditData(null);
+            setOpen(true);
+          }}
+        >
+          + Add Lead
+        </Button>
+
+        <Select
+          value={dateField}
+          onChange={setDateField}
+          style={{ width: 160 }}
+          options={[
+            { value: "createdAt", label: "Created Date" },
+            { value: "nextFollowUpDate", label: "Follow-up Date" },
+          ]}
+        />
+
+        <RangePicker
+          value={dateRange}
+          onChange={(values) => setDateRange(values)}
+          format="DD MMM YYYY"
+          allowClear
+          placeholder={["From date", "To date"]}
+        />
+
+        <Dropdown
+          disabled={!filteredLeads.length}
+          menu={{
+            items: LEAD_EXPORT_FORMATS.map((item) => ({
+              key: item.key,
+              label: item.label,
+              onClick: () => handleExportLeads(item.key),
+            })),
+          }}
+        >
+          <Button icon={<DownloadOutlined />} disabled={!filteredLeads.length}>
+            Export <DownOutlined />
+          </Button>
+        </Dropdown>
+
+        {dateRange?.[0] && dateRange?.[1] ? (
+          <Tag color="blue">
+            Showing {filteredLeads.length} of {leads.length}
+          </Tag>
+        ) : null}
+      </Space>
 
       <div className="table-responsive-wrap">
       <Table
         columns={columns}
-        dataSource={leads}
+        dataSource={filteredLeads}
         rowKey="_id"
         loading={loading}
         pagination={{ pageSize: 10 }}

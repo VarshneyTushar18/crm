@@ -1,10 +1,13 @@
-import { Modal, Form, Input, Select } from "antd";
-import { useEffect } from "react";
+import { Modal, Form, Input, Select, message } from "antd";
+import { useEffect, useState } from "react";
+import { getCustomers } from "../Customer/customerApi";
 
 const { Option } = Select;
 
 export default function JobForm({ open, onCancel, onSubmit, initialValues }) {
   const [form] = Form.useForm();
+  const [customers, setCustomers] = useState([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -16,6 +19,26 @@ export default function JobForm({ open, onCancel, onSubmit, initialValues }) {
       });
     }
   }, [open, initialValues, form]);
+
+  useEffect(() => {
+    const loadCustomers = async () => {
+      if (!open) return;
+      try {
+        setLoadingCustomers(true);
+        const result = await getCustomers();
+        setCustomers(Array.isArray(result) ? result : []);
+      } catch (err) {
+        message.error(
+          err?.response?.data?.message || err?.message || "Failed to load customers"
+        );
+        setCustomers([]);
+      } finally {
+        setLoadingCustomers(false);
+      }
+    };
+
+    loadCustomers();
+  }, [open]);
 
   return (
     <Modal
@@ -38,11 +61,20 @@ export default function JobForm({ open, onCancel, onSubmit, initialValues }) {
         </Form.Item>
 
         <Form.Item
-          name="customer"
+          name="customerId"
           label="Customer"
           rules={[{ required: true, message: "Customer is required" }]}
         >
-          <Input placeholder="Customer name" />
+          <Select
+            showSearch
+            loading={loadingCustomers}
+            placeholder="Select customer"
+            optionFilterProp="label"
+            options={customers.map((c) => ({
+              value: c?._id,
+              label: `${c?.name || "Unnamed"}${c?.companyName ? ` (${c.companyName})` : ""}`,
+            }))}
+          />
         </Form.Item>
 
         <Form.Item
