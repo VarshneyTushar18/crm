@@ -1,5 +1,5 @@
 import axios from "axios";
-import { API_BASE_URL } from "@/config/serverApiConfig";
+import { API_BASE_URL, multipartAuthHeaders } from "@/config/serverApiConfig";
 
 const client = axios.create({ baseURL: `${API_BASE_URL}/` });
 
@@ -41,6 +41,6 @@ export const uploadMeasurementFiles = (id, files) => {
   const formData = new FormData();
   files.forEach((f) => formData.append("files", f));
   return client.post(`measurement/upload/${id}`, formData, {
-    headers: { "Content-Type": "multipart/form-data" },
+    headers: multipartAuthHeaders(),
   });
 };

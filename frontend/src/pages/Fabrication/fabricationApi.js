@@ -1,5 +1,5 @@
 import axios from "axios";
-import { API_BASE_URL } from '@/config/serverApiConfig';
+import { API_BASE_URL, multipartAuthHeaders } from '@/config/serverApiConfig';
 
 const API = `${API_BASE_URL}/fabrication`;
 
@@ -63,7 +63,7 @@ export const uploadFabricationFiles = async (id, files) => {
   const formData = new FormData();
   files.forEach((file) => formData.append("files", file));
   const res = await axios.post(`${API}/upload/${id}`, formData, {
-    headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
+    headers: multipartAuthHeaders(),
   });
   return res.data;
 };

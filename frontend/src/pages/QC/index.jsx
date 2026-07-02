@@ -22,7 +22,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { FormOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useJob } from "../../context/JobContext";
-import { getJobs, updateJob } from "../Jobs/jobApi";
+import { getJobs, updateJob, updateJobStage } from "../Jobs/jobApi";
 import {
   getQcItems,
   createQcItem,
@@ -382,54 +382,31 @@ export default function QC() {
       return;
     }
 
+    const now = new Date().toISOString();
+    const indicator = items
+      .map((item) => `${item.itemName}: ${item.status}`)
+      .join("; ");
+
     try {
       setCompleting(true);
 
-      const finishingEvent = {
-        ...(jobData?.workflowEvents?.finishing || {}),
+      await updateJobStage(jobId, "finishing", {
+        startExpected: now,
+        startActual: now,
+        completionExpected: now,
+        completionActual: now,
+        qualityCheckIndicator: indicator,
         isCompleted: true,
-        completedAt: new Date().toISOString(),
-        completedBy: "QC Module",
-      };
+      });
 
       await updateJob(jobId, {
         stage: "Installation",
         status: "Active",
-        workflowEvents: {
-          ...(jobData?.workflowEvents || {}),
-          finishing: finishingEvent,
-        },
       });
 
-      if (jobData) {
-        const updatedJobData = {
-          ...jobData,
-          stage: "Installation",
-          status: "Active",
-          workflowEvents: {
-            ...(jobData?.workflowEvents || {}),
-            finishing: finishingEvent,
-          },
-        };
-        setCurrentJobContext(updatedJobData);
-      }
-
-      message.success("QC completed. Job moved to Installation.");
-      navigate(`/admin/installation?jobId=${jobId}`, {
-        state: {
-          job: {
-            ...jobData,
-            stage: "Installation",
-            status: "Active",
-            workflowEvents: {
-              ...(jobData?.workflowEvents || {}),
-              finishing: finishingEvent,
-            },
-          },
-        },
-      });
-    }
-    catch (err) {
+      message.success("QC submitted for site engineer review. Job moved to Installation.");
+      navigate(`/admin/installation?jobId=${jobId}`);
+    } catch (err) {
       message.error(
         err?.response?.data?.message || err?.message || "Failed to complete QC"
       );
@@ -549,9 +526,14 @@ export default function QC() {
           <Button
             onClick={async () => {
               if (!jobId) return message.warning("Select a job first");
+              const batchRef = window.prompt("Enter powder coating batch reference (required):");
+              if (!String(batchRef || "").trim()) {
+                message.warning("Batch reference is required to close powder coating");
+                return;
+              }
               try {
-                await markPowderCoatingComplete(jobId);
-                message.success("Powder coating marked complete");
+                await markPowderCoatingComplete(jobId, batchRef.trim());
+                message.success("Powder coating submitted for site engineer review");
                 await fetchItems(jobId);
               } catch (err) {
                 message.error(err?.response?.data?.message || "Failed");

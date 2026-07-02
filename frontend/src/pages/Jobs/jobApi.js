@@ -37,6 +37,13 @@ export const updateJob = async (id, payload) => {
   return res.data;
 };
 
+export const updateJobStage = async (id, stageName, payload) => {
+  const res = await axios.patch(`${API}/stage/${id}/${stageName}`, payload, {
+    headers: { ...authHeaders() },
+  });
+  return res.data;
+};
+
 export const getJobById = async (id) => {
   const res = await axios.get(`${API}/read/${id}`, {
     headers: { ...authHeaders() },

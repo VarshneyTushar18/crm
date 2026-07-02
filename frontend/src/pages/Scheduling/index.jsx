@@ -589,6 +589,7 @@ export default function Scheduling() {
           <Form.Item label="Attachments (JPEG / PDF / Drawings)">
             <Upload
               multiple
+              accept="image/*,.pdf,.dwg,.dxf"
               beforeUpload={() => false}
               fileList={pendingFiles.map((file, index) => ({
                 uid: `${file.name}-${index}`,

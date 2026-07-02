@@ -50,6 +50,7 @@ import {
   uploadFabricationFiles,
 } from "./fabricationApi";
 import SendForSiteEngineerButton from "@/components/SendForSiteEngineerButton";
+import { buildFileUrl } from "@/config/serverApiConfig";
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -1411,37 +1412,41 @@ export default function Fabrication() {
           </Form.Item>
 
           {selectedProgressItem?._id ? (
-            <Form.Item label="Photos (required for 100%)">
+            <Form.Item label="Photos / PDF (required for 100%)">
               <Upload
                 multiple
-                beforeUpload={() => false}
-                onChange={async (info) => {
-                  const files = info.fileList
-                    .map((f) => f.originFileObj)
-                    .filter(Boolean);
-                  if (!files.length) return;
+                accept="image/*,.pdf,video/*"
+                customRequest={async ({ file, onSuccess, onError }) => {
                   try {
-                    await uploadFabricationFiles(selectedProgressItem._id, files);
-                    message.success("Photos uploaded");
+                    await uploadFabricationFiles(selectedProgressItem._id, [file]);
+                    message.success("File uploaded");
                     await fetchItems(jobId);
                     const refreshed = (await getFabricationItems(jobId))?.items?.find(
                       (i) => i._id === selectedProgressItem._id
                     );
                     if (refreshed) setSelectedProgressItem(refreshed);
+                    onSuccess?.(null, file);
                   } catch (err) {
                     message.error(err?.response?.data?.message || "Upload failed");
+                    onError?.(err);
                   }
                 }}
               >
-                <Button icon={<UploadOutlined />}>Upload photos</Button>
+                <Button icon={<UploadOutlined />}>Upload files</Button>
               </Upload>
               {(selectedProgressItem.photoUrls || []).length > 0 ? (
-                <div style={{ marginTop: 8, fontSize: 12, color: "#666" }}>
-                  {selectedProgressItem.photoUrls.length} file(s) attached
+                <div style={{ marginTop: 8, fontSize: 12 }}>
+                  {(selectedProgressItem.photoUrls || []).map((url) => (
+                    <div key={url}>
+                      <a href={buildFileUrl(url)} target="_blank" rel="noreferrer">
+                        {url.split("/").pop()}
+                      </a>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div style={{ marginTop: 8, fontSize: 12, color: "#cf1322" }}>
-                  No photos yet — upload before setting 100%
+                  No files yet — upload before setting 100%
                 </div>
               )}
             </Form.Item>

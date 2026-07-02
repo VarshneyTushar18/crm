@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { API_BASE_URL } from '@/config/serverApiConfig';
+import { API_BASE_URL, buildFileUrl } from '@/config/serverApiConfig';
 import dayjs from "dayjs";
 import { useJob } from "../../context/JobContext";
 import {
@@ -716,23 +716,21 @@ export default function SiteMeasurement() {
                     <Form.Item label="Files (JPEG / PDF / Drawings)">
                       <Upload
                         multiple
-                        beforeUpload={() => false}
-                        onChange={async (info) => {
-                          const files = info.fileList
-                            .map((f) => f.originFileObj)
-                            .filter(Boolean);
-                          if (!files.length) return;
+                        accept="image/*,.pdf,.dwg,.dxf,video/*"
+                        customRequest={async ({ file, onSuccess, onError }) => {
                           try {
                             const res = await uploadMeasurementFiles(
                               currentMeasurement._id,
-                              files
+                              [file]
                             );
-                            setCurrentMeasurement(res.data.result);
-                            message.success(res.data.message || "Files uploaded");
+                            setCurrentMeasurement(res.data?.result);
+                            message.success(res.data?.message || "File uploaded");
+                            onSuccess?.(null, file);
                           } catch (err) {
                             message.error(
                               err?.response?.data?.message || "Upload failed"
                             );
+                            onError?.(err);
                           }
                         }}
                       >
@@ -744,8 +742,12 @@ export default function SiteMeasurement() {
                         dataSource={currentMeasurement.photoUrls || []}
                         renderItem={(url) => (
                           <List.Item>
-                            <a href={url.startsWith("http") ? url : `${API_BASE_URL.replace("/api", "")}${url}`} target="_blank" rel="noreferrer">
-                              {url}
+                            <a
+                              href={buildFileUrl(url)}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {url.split("/").pop()}
                             </a>
                           </List.Item>
                         )}

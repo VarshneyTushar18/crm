@@ -23,6 +23,7 @@ import { UploadOutlined, EyeOutlined } from "@ant-design/icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useJob } from "../../context/JobContext";
 import { buildFileUrl } from "@/config/serverApiConfig";
+import { isPdfFile } from "@/utils/fileUploadUtils";
 import SendForSiteEngineerButton from "@/components/SendForSiteEngineerButton";
 import { getJobs, updateJob } from "../Jobs/jobApi";
 import {
@@ -287,7 +288,7 @@ export default function Drafting() {
   };
 
   const handlePdfSelect = async (file) => {
-    if (!file || file.type !== "application/pdf") {
+    if (!file || !isPdfFile(file)) {
       message.error("Please select a PDF file");
       return false;
     }

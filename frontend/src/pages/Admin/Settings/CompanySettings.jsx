@@ -3,7 +3,7 @@ import { Card, Form, Input, Button, Upload, message } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import axios from "axios";
 import BrandLogo from "@/components/BrandLogo";
-import { API_BASE_URL, BASE_URL } from '@/config/serverApiConfig';
+import { API_BASE_URL, BASE_URL, multipartAuthHeaders } from '@/config/serverApiConfig';
 
 const API_BASE = API_BASE_URL;
 
@@ -58,7 +58,7 @@ export default function CompanySettings() {
         fd.append("logo", file);
 
         const res = await axios.post(`${API_BASE}/settings/logo`, fd, {
-          headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
+          headers: multipartAuthHeaders(),
         });
 
         message.success(res.data?.message || "Logo updated");

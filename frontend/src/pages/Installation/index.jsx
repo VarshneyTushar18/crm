@@ -48,6 +48,7 @@ import {
   uploadInstallationActivityFiles,
 } from "./installationApi";
 import SendForSiteEngineerButton from "@/components/SendForSiteEngineerButton";
+import { buildFileUrl } from "@/config/serverApiConfig";
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -1085,39 +1086,43 @@ export default function Installation() {
 
             {editingItem?._id ? (
               <Col xs={24}>
-                <Form.Item label="Photos (required to mark Completed)">
+                <Form.Item label="Photos / PDF (required to mark Completed)">
                   <Upload
                     multiple
-                    beforeUpload={() => false}
-                    onChange={async (info) => {
-                      const files = info.fileList
-                        .map((f) => f.originFileObj)
-                        .filter(Boolean);
-                      if (!files.length) return;
+                    accept="image/*,.pdf,.doc,.docx,video/*"
+                    customRequest={async ({ file, onSuccess, onError }) => {
                       try {
                         const updated = await uploadInstallationActivityFiles(
                           editingItem._id,
-                          files
+                          [file]
                         );
                         setEditingItem(updated);
-                        message.success("Photos uploaded");
+                        message.success("File uploaded");
                         if (selectedJob?._id) {
                           await loadInstallationData(selectedJob._id);
                         }
+                        onSuccess?.(null, file);
                       } catch (err) {
                         message.error(err?.response?.data?.message || "Upload failed");
+                        onError?.(err);
                       }
                     }}
                   >
-                    <Button icon={<UploadOutlined />}>Upload photos</Button>
+                    <Button icon={<UploadOutlined />}>Upload files</Button>
                   </Upload>
                   {(editingItem.photoUrls || []).length > 0 ? (
-                    <div style={{ marginTop: 8, fontSize: 12, color: "#666" }}>
-                      {editingItem.photoUrls.length} file(s) attached
+                    <div style={{ marginTop: 8, fontSize: 12 }}>
+                      {(editingItem.photoUrls || []).map((url) => (
+                        <div key={url}>
+                          <a href={buildFileUrl(url)} target="_blank" rel="noreferrer">
+                            {url.split("/").pop()}
+                          </a>
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     <div style={{ marginTop: 8, fontSize: 12, color: "#cf1322" }}>
-                      No photos yet — upload before marking activity complete
+                      No files yet — upload before marking activity complete
                     </div>
                   )}
                 </Form.Item>

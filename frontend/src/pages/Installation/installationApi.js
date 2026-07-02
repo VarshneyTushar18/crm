@@ -1,5 +1,5 @@
 import axios from "axios";
-import { API_BASE_URL } from '@/config/serverApiConfig';
+import { API_BASE_URL, multipartAuthHeaders } from '@/config/serverApiConfig';
 
 const getAuthToken = () =>
     localStorage.getItem("token") ||
@@ -19,6 +19,8 @@ const authHeaders = (isMultipart = false) => {
 
     return headers;
 };
+
+const multipartHeaders = () => multipartAuthHeaders();
 
 const unwrap = (res) => res?.data?.result || res?.data?.data || res?.data || [];
 
@@ -77,7 +79,7 @@ export const finalizeJobCompletion = async (jobId, formData) => {
         `${API_BASE_URL}/installation/finalize/${jobId}`,
         formData,
         {
-            headers: authHeaders(true),
+            headers: multipartHeaders(),
         }
     );
     return unwrap(res);
@@ -98,7 +100,7 @@ export const uploadInstallationActivityFiles = async (id, files) => {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
     const res = await axios.post(`${API_BASE_URL}/installation/upload/${id}`, formData, {
-        headers: authHeaders(true),
+        headers: multipartHeaders(),
     });
     return unwrap(res);
 };

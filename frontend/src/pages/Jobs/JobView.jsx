@@ -6,6 +6,7 @@ import axios from "axios";
 import dayjs from "dayjs";
 import { API_BASE_URL } from '@/config/serverApiConfig';
 import { buildStagesConfig, MODULES_REQUIRING_SITE_ENGINEER, calcStageCompletionPercent } from "@/config/workflowConfig";
+import { STAGE_MANUAL_FIELDS, getStageManualFieldRules } from "@/config/stageManualFields";
 import { getSiteEngineerReviews } from "@/api/extensionApi";
 import JobChatPanel from "@/components/JobChatPanel";
 
@@ -16,81 +17,6 @@ const authHeaders = () => {
 };
 
 const API = `${API_BASE_URL}/job`;
-
-const STAGE_FIELDS = {
-  siteMeasurement: [
-    { name: "scheduledDate", label: "Scheduled Date", type: "date" },
-    { name: "expectedHours", label: "Expected Hours", type: "number" },
-    { name: "actualHours", label: "Actual Hours", type: "number" },
-  ],
-  planning: [
-    { name: "approvalDate", label: "Approval Date", type: "date" },
-    { name: "confirmationRecord", label: "Confirmation Record", type: "text" },
-    { name: "attachmentUrl", label: "Attachment URL", type: "text" },
-  ],
-  scheduling: [
-    { name: "scheduledDate", label: "Scheduled Date", type: "date" },
-    { name: "notes", label: "Notes", type: "text" },
-  ],
-  drafting: [
-    { name: "startExpected", label: "Start Expected", type: "date" },
-    { name: "startActual", label: "Start Actual", type: "date" },
-    { name: "completionExpected", label: "Completion Expected", type: "date" },
-    { name: "completionActual", label: "Completion Actual", type: "date" },
-    { name: "documentUrl", label: "Document URL", type: "text" },
-  ],
-  clientApproval: [
-    { name: "approvalDate", label: "Approval Date", type: "date" },
-    { name: "confirmationRecord", label: "Confirmation Record", type: "text" },
-    { name: "attachmentUrl", label: "Attachment URL", type: "text" },
-  ],
-  siteEngineerApproval: [
-    { name: "approvalDate", label: "Approval Date", type: "date" },
-    { name: "approvedBy", label: "Checked By", type: "text" },
-    { name: "comments", label: "Comments", type: "text" },
-  ],
-  materialPurchasing: [
-    { name: "requestDate", label: "Request Date", type: "date" },
-    { name: "supplierRef", label: "Supplier Ref", type: "text" },
-  ],
-  fabrication: [
-    { name: "startExpectedHours", label: "Start Expected Hours", type: "number" },
-    { name: "startActualHours", label: "Start Actual Hours", type: "number" },
-    { name: "completionExpectedHours", label: "Completion Expected Hours", type: "number" },
-    { name: "completionActualHours", label: "Completion Actual Hours", type: "number" },
-    { name: "jobCards", label: "Job Cards Info", type: "text" },
-  ],
-  fabricationQc: [
-    { name: "approvalDate", label: "QC Date", type: "date" },
-    { name: "checkedBy", label: "Checked By", type: "text" },
-  ],
-  powderCoating: [
-    { name: "startActual", label: "Start Date", type: "date" },
-    { name: "completionActual", label: "Completion Date", type: "date" },
-    { name: "batchRef", label: "Batch Ref", type: "text" },
-  ],
-  powderCoatingQc: [
-    { name: "approvalDate", label: "QC Date", type: "date" },
-    { name: "checkedBy", label: "Checked By", type: "text" },
-  ],
-  finishing: [
-    { name: "startExpected", label: "Start Expected", type: "date" },
-    { name: "startActual", label: "Start Actual", type: "date" },
-    { name: "completionExpected", label: "Completion Expected", type: "date" },
-    { name: "completionActual", label: "Completion Actual", type: "date" },
-    { name: "qualityCheckIndicator", label: "QC Indicator", type: "text" },
-  ],
-  installation: [
-    { name: "scheduledDate", label: "Scheduled Date", type: "date" },
-    { name: "expectedHours", label: "Expected Hours", type: "number" },
-    { name: "actualHours", label: "Actual Hours", type: "number" },
-    { name: "installer", label: "Assigned Installer", type: "text" },
-  ],
-  jobCompletion: [
-    { name: "completionDate", label: "Completion Date", type: "date" },
-    { name: "signatureCapture", label: "Signature (Text/Ref)", type: "text" },
-  ],
-};
 
 const LEGACY_STAGES_CONFIG = [
   {
@@ -192,7 +118,7 @@ function getStagesConfigForJob(job) {
   if (!job) return LEGACY_STAGES_CONFIG;
   return buildStagesConfig(job).map((stage) => ({
     ...stage,
-    fields: STAGE_FIELDS[stage.key] || [],
+    fields: STAGE_MANUAL_FIELDS[stage.key] || [],
   }));
 }
 
@@ -301,9 +227,29 @@ export default function JobView() {
 
   const handleStageSubmit = async (values) => {
     try {
-      // Format dates
       const conf = stagesConfig.find(s => s.key === activeStage);
       const payload = { ...values };
+
+      if (values.isCompleted && conf?.fields?.length) {
+        const missing = conf.fields.filter(
+          (field) => {
+            const val = values[field.name];
+            if (field.type === "number") {
+              return val === null || val === undefined || val === "" || Number(val) <= 0;
+            }
+            if (field.type === "date") {
+              return !val;
+            }
+            return !String(val ?? "").trim();
+          }
+        );
+        if (missing.length) {
+          message.warning(
+            `Fill all required fields before closing: ${missing.map((f) => f.label).join(", ")}`
+          );
+          return;
+        }
+      }
 
       if (conf) {
         conf.fields.forEach(f => {
@@ -313,12 +259,12 @@ export default function JobView() {
         });
       }
 
-      await axios.patch(`${API}/stage/${id}/${activeStage}`, payload, { headers: authHeaders() });
-      message.success("Stage updated successfully!");
+      const res = await axios.patch(`${API}/stage/${id}/${activeStage}`, payload, { headers: authHeaders() });
+      message.success(res.data?.message || "Stage updated successfully!");
       setIsModalOpen(false);
       fetchJob();
     } catch (err) {
-      message.error("Failed to update stage");
+      message.error(err?.response?.data?.message || "Failed to update stage");
     }
   };
 
@@ -595,15 +541,34 @@ export default function JobView() {
         onOk={() => form.submit()}
       >
         <Form form={form} layout="vertical" onFinish={handleStageSubmit}>
-          {activeStageConfig?.fields.map(f => (
-            <Form.Item key={f.name} name={f.name} label={f.label}>
-              {f.type === "date" ? <DatePicker showTime style={{ width: "100%" }} /> :
-                f.type === "number" ? <InputNumber style={{ width: "100%" }} /> :
-                  <Input />}
-            </Form.Item>
-          ))}
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.isCompleted !== cur.isCompleted}>
+            {({ getFieldValue }) => {
+              const isCompleting = !!getFieldValue("isCompleted");
+              return activeStageConfig?.fields.map((f) => (
+                <Form.Item
+                  key={f.name}
+                  name={f.name}
+                  label={f.label}
+                  rules={getStageManualFieldRules(f, isCompleting)}
+                >
+                  {f.type === "date" ? (
+                    <DatePicker showTime style={{ width: "100%" }} />
+                  ) : f.type === "number" ? (
+                    <InputNumber min={0.01} style={{ width: "100%" }} />
+                  ) : (
+                    <Input />
+                  )}
+                </Form.Item>
+              ));
+            }}
+          </Form.Item>
           <Divider orientation="left">Stage Completion</Divider>
-          <Form.Item name="isCompleted" label="Mark as Completed?" valuePropName="checked">
+          <Form.Item
+            name="isCompleted"
+            label="Mark as Completed?"
+            valuePropName="checked"
+            extra="All fields above are required when marking a stage complete."
+          >
             <Switch />
           </Form.Item>
         </Form>

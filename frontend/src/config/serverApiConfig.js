@@ -29,3 +29,14 @@ export const buildFileUrl = (fileUrl = "") => {
   const base = FILE_BASE_URL.endsWith("/") ? FILE_BASE_URL : `${FILE_BASE_URL}/`;
   return `${base}${String(fileUrl).replace(/^\//, "")}`;
 };
+
+/** Auth headers for multipart uploads — do NOT set Content-Type (axios adds boundary). */
+export const multipartAuthHeaders = () => {
+  const token =
+    (typeof window !== "undefined" &&
+      (window.localStorage.getItem("token") ||
+        window.localStorage.getItem("authToken") ||
+        window.localStorage.getItem("erpToken"))) ||
+    "";
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};

@@ -27,9 +27,25 @@ import {
   updatePlanningTask,
   deletePlanningTask,
 } from "./planningApi";
-import { getJobs, updateJob } from "../Jobs/jobApi";
+import { getJobs, updateJob, updateJobStage } from "../Jobs/jobApi";
+import { countryList } from "@/utils/countryList";
 
 const { Option } = Select;
+
+const formatTaskLocation = (record) => {
+  const parts = [record?.location, record?.city, record?.state, record?.country]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean);
+  return parts.join(", ");
+};
+
+const getCountryLabel = (value) => {
+  if (!value) return "";
+  const match = countryList.find(
+    (item) => item.value === value || item.label === value
+  );
+  return match?.label || value;
+};
 
 const STAGE_COLORS = {
   Backlog: "default",
@@ -232,6 +248,8 @@ export default function Planning() {
     const start = values?.range?.[0]?.format("YYYY-MM-DD");
     const end = values?.range?.[1]?.format("YYYY-MM-DD");
 
+    const countryLabel = getCountryLabel(values.country);
+
     const payload = {
       jobId,
       task: values.task,
@@ -240,6 +258,10 @@ export default function Planning() {
       workers: values.workers,
       hours: values.hours,
       status: values.status,
+      country: countryLabel,
+      location: values.location?.trim() || "",
+      city: values.city?.trim() || "",
+      state: values.state?.trim() || "",
     };
 
     try {
@@ -317,45 +339,44 @@ export default function Planning() {
       return;
     }
 
+    if (!data.length) {
+      message.warning("Add at least one planning task before closing planning");
+      return;
+    }
+
+    const incompleteTask = data.find(
+      (task) =>
+        !String(task.task || "").trim() ||
+        !String(task.location || "").trim() ||
+        !String(task.country || "").trim()
+    );
+    if (incompleteTask) {
+      message.warning("Every planning task needs task name, country, and visit location");
+      return;
+    }
+
     try {
       setCompleting(true);
 
-      const planningUpdate = {
-        isCompleted: true,
+      const mapsLink =
+        data.find((task) => task.mapsUrl)?.mapsUrl ||
+        data.map((task) => task.location).filter(Boolean).join(" | ");
+
+      await updateJobStage(jobId, "planning", {
         approvalDate: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        completedBy: "Planning Module",
-      };
+        confirmationRecord: `Planning locked with ${data.length} task(s): ${data
+          .map((task) => task.task)
+          .join(", ")}`,
+        attachmentUrl: mapsLink,
+        isCompleted: true,
+      });
 
       await updateJob(jobId, {
         stage: "Drafting",
         status: "Active",
-        workflowEvents: {
-          ...jobData?.workflowEvents,
-          planning: {
-            ...jobData?.workflowEvents?.planning,
-            ...planningUpdate,
-          },
-        },
       });
 
-      if (jobData) {
-        const updatedJobData = {
-          ...jobData,
-          stage: "Drafting",
-          status: "Active",
-          workflowEvents: {
-            ...jobData.workflowEvents,
-            planning: {
-              ...jobData.workflowEvents?.planning,
-              ...planningUpdate,
-            },
-          },
-        };
-        setCurrentJobContext(updatedJobData);
-      }
-
-      message.success("Planning completed. Job moved to Drafting.");
+      message.success("Planning submitted for site engineer review. Job moved to Drafting.");
       navigate("/admin/jobs");
     } catch (err) {
       message.error(
@@ -368,6 +389,33 @@ export default function Planning() {
 
   const columns = [
     { title: "Task", dataIndex: "task" },
+    {
+      title: "Where to go",
+      render: (_, record) => formatTaskLocation(record) || "-",
+    },
+    {
+      title: "Country",
+      dataIndex: "country",
+      render: (value) => value || "-",
+    },
+    {
+      title: "Maps",
+      render: (_, record) => {
+        const url =
+          record.mapsUrl ||
+          (formatTaskLocation(record)
+            ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                formatTaskLocation(record)
+              )}`
+            : "");
+        if (!url) return "-";
+        return (
+          <Button size="small" type="link" onClick={() => window.open(url, "_blank")}>
+            Open
+          </Button>
+        );
+      },
+    },
     { title: "Start", dataIndex: "start" },
     { title: "End", dataIndex: "end" },
     { title: "Estimated employee requirement", dataIndex: "workers" },
@@ -440,6 +488,11 @@ export default function Planning() {
                 message.warning("Please select a job first");
                 return;
               }
+              form.setFieldsValue({
+                country: "AU",
+                location: jobData?.site || "",
+                status: "Pending",
+              });
               setOpen(true);
             }}
           >
@@ -556,6 +609,7 @@ export default function Planning() {
         }}
         onOk={() => form.submit()}
         okText="Save"
+        width={720}
       >
         <Form form={form} layout="vertical" onFinish={onAddTask}>
           <Form.Item
@@ -563,8 +617,70 @@ export default function Planning() {
             label="Task"
             rules={[{ required: true, message: "Task is required" }]}
           >
-            <Input placeholder="e.g. Measurement review / team allocation" />
+            <Input placeholder="e.g. Site visit / team allocation" />
           </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="country"
+                label="Country"
+                rules={[{ required: true, message: "Select country" }]}
+              >
+                <Select
+                  showSearch
+                  placeholder="Select country"
+                  optionFilterProp="children"
+                >
+                  {countryList.map((item) => (
+                    <Option key={item.value} value={item.value}>
+                      {item.label}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Quick fill">
+                <Button
+                  block
+                  onClick={() => {
+                    form.setFieldsValue({
+                      location: jobData?.site || "",
+                      country: "AU",
+                    });
+                  }}
+                >
+                  Use job site address
+                </Button>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item
+            name="location"
+            label="Location / address to visit"
+            rules={[{ required: true, message: "Enter where the team must go" }]}
+            extra="Street address or site name the team needs to travel to."
+          >
+            <Input.TextArea
+              rows={2}
+              placeholder="e.g. 12 Industrial Ave, Parramatta NSW"
+            />
+          </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="city" label="City / suburb">
+                <Input placeholder="e.g. Sydney" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="state" label="State / region">
+                <Input placeholder="e.g. NSW" />
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Form.Item
             name="range"
