@@ -23,7 +23,7 @@ import {
 } from "../../../api/customerPortalApi";
 
 const { TextArea } = Input;
-const { Text } = Typography;
+const { Text, Paragraph } = Typography;
 
 export default function ContactUs() {
   const [form] = Form.useForm();
@@ -169,33 +169,53 @@ export default function ContactUs() {
               loading={contactsLoading}
               dataSource={contacts}
               locale={{ emptyText: "You have no contact requests yet." }}
-              renderItem={(contact) => (
-                <List.Item
-                  key={contact._id}
-                  actions={[
-                    <Button key="view" type="link" onClick={() => openContactModal(contact)}>
-                      View Thread
-                    </Button>,
-                    contact.status !== "Closed" ? (
-                      <Button key="reply" type="primary" onClick={() => openContactModal(contact)}>
-                        Reply
-                      </Button>
-                    ) : null,
-                  ]}
-                >
-                  <List.Item.Meta
-                    title={contact.subject}
-                    description={
-                      <Space wrap>
-                        {renderPriorityTag(contact.priority)}
-                        {renderStatusTag(contact.status)}
-                        <span>{contact.projectId ? contact.projectId.jobId || contact.projectId.site || contact.projectId.address : "No project"}</span>
+              split={false}
+              renderItem={(contact) => {
+                const projectLabel = contact.projectId
+                  ? contact.projectId.jobId ||
+                    contact.projectId.site ||
+                    contact.projectId.address
+                  : "No project";
+
+                return (
+                  <List.Item key={contact._id} style={{ padding: 0, marginBottom: 12, border: "none" }}>
+                    <Card size="small" style={{ width: "100%" }}>
+                      <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                        <Text strong style={{ fontSize: 15, lineHeight: 1.4 }}>
+                          {contact.subject}
+                        </Text>
+
+                        <Space wrap size={[4, 4]}>
+                          {renderPriorityTag(contact.priority)}
+                          {renderStatusTag(contact.status)}
+                          <Text type="secondary" style={{ whiteSpace: "nowrap" }}>
+                            {projectLabel}
+                          </Text>
+                        </Space>
+
+                        <Paragraph
+                          type="secondary"
+                          style={{ marginBottom: 0 }}
+                          ellipsis={{ rows: 2, expandable: false }}
+                        >
+                          {contact.message}
+                        </Paragraph>
+
+                        <Space wrap>
+                          <Button type="link" size="small" onClick={() => openContactModal(contact)}>
+                            View Thread
+                          </Button>
+                          {contact.status !== "Closed" && (
+                            <Button type="primary" size="small" onClick={() => openContactModal(contact)}>
+                              Reply
+                            </Button>
+                          )}
+                        </Space>
                       </Space>
-                    }
-                  />
-                  <div>{contact.message}</div>
-                </List.Item>
-              )}
+                    </Card>
+                  </List.Item>
+                );
+              }}
             />
           </Card>
         </Col>
