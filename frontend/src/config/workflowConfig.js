@@ -122,7 +122,7 @@ export function calcStageCompletionPercent(stageData = {}) {
     stageData.stageStatus === "Awaiting Site Engineer" ||
     stageData.siteEngineerStatus === "Pending"
   ) {
-    return 85;
+    return stageData.moduleWorkComplete || stageData.isCompleted ? 100 : 85;
   }
   const subtasks = Array.isArray(stageData.subtasks) ? stageData.subtasks : [];
   if (subtasks.length) {
@@ -141,4 +141,13 @@ export function calcJobCompletionPercent(workflowEvents = {}, jobOrVersion = 3) 
     total += calcStageCompletionPercent(workflowEvents?.[key]);
   }
   return Math.round(total / keys.length);
+}
+
+/** True when stage work is finished enough to unlock the next module in the UI. */
+export function isStageWorkComplete(stageData = {}) {
+  if (!stageData || typeof stageData !== "object") return false;
+  if (stageData.isCompleted || stageData.stageStatus === "Complete") return true;
+  if (stageData.siteEngineerStatus === "Approved") return true;
+  if (stageData.moduleWorkComplete) return true;
+  return false;
 }

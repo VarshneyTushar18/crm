@@ -51,6 +51,7 @@ import {
 } from "./fabricationApi";
 import SendForSiteEngineerButton from "@/components/SendForSiteEngineerButton";
 import { buildFileUrl } from "@/config/serverApiConfig";
+import { isStageWorkComplete } from "@/config/workflowConfig";
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -189,10 +190,20 @@ export default function Fabrication() {
   const eligibleJobs = useMemo(() => {
     return jobs.filter(
       (job) =>
-        job?.workflowEvents?.drafting?.isCompleted &&
-        job?.workflowEvents?.materialPurchasing?.isCompleted
+        isStageWorkComplete(job?.workflowEvents?.drafting) &&
+        isStageWorkComplete(job?.workflowEvents?.materialPurchasing)
     );
   }, [jobs]);
+
+  const clearStaleJobSelection = () => {
+    setJobData(null);
+    setItems([]);
+    setDraftingItems([]);
+    setIfcApproved(false);
+    setActiveJobId(null);
+    localStorage.removeItem("activeJobId");
+    navigate("/admin/fabrication", { replace: true });
+  };
 
   const fabricationSummary = useMemo(() => {
     const totalItems = items.length;
@@ -384,25 +395,17 @@ export default function Fabrication() {
         return;
       }
 
-      if (!job?.workflowEvents?.drafting?.isCompleted) {
+      if (!isStageWorkComplete(job?.workflowEvents?.drafting)) {
         message.warning("This job is not eligible for Fabrication. Complete Drafting first.");
-        setJobData(null);
-        setItems([]);
-        setDraftingItems([]);
-        setIfcApproved(false);
-        navigate("/admin/fabrication");
+        clearStaleJobSelection();
         return;
       }
 
-      if (!job?.workflowEvents?.materialPurchasing?.isCompleted) {
+      if (!isStageWorkComplete(job?.workflowEvents?.materialPurchasing)) {
         message.warning(
           "This job is not eligible for Fabrication. Complete Material Purchase first."
         );
-        setJobData(null);
-        setItems([]);
-        setDraftingItems([]);
-        setIfcApproved(false);
-        navigate("/admin/fabrication");
+        clearStaleJobSelection();
         return;
       }
 
@@ -1029,7 +1032,8 @@ export default function Fabrication() {
         <div>
           <h2 className="page-shell__title">Fabrication</h2>
           <div style={{ color: "#666", marginTop: 4 }}>
-            Only jobs with completed Material Purchasing are available here.
+            Jobs appear here after Drafting and Material Purchase are finished (including sent for Site Engineer review).
+            IFC drawings must be approved before adding fabrication items.
           </div>
         </div>
 
@@ -1066,7 +1070,9 @@ export default function Fabrication() {
               allowClear
               placeholder="Select eligible job"
               style={{ width: "100%" }}
-              value={jobId || undefined}
+              value={
+                eligibleJobs.some((job) => job._id === jobId) ? jobId : undefined
+              }
               onChange={onJobChange}
               loading={loadingJobs}
               optionFilterProp="children"
@@ -1107,7 +1113,11 @@ export default function Fabrication() {
         </Card>
       ) : !jobData ? (
         <Card>
-          <Spin />
+          {loadingJobs || loadingItems ? (
+            <Spin />
+          ) : (
+            <Empty description="Selected job is not eligible or could not be loaded. Pick a job from the list above." />
+          )}
         </Card>
       ) : (
         <>

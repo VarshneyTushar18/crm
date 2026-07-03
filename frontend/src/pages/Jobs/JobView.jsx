@@ -5,7 +5,7 @@ import { DollarOutlined, FileTextOutlined, PlusOutlined, DownloadOutlined } from
 import axios from "axios";
 import dayjs from "dayjs";
 import { API_BASE_URL } from '@/config/serverApiConfig';
-import { buildStagesConfig, MODULES_REQUIRING_SITE_ENGINEER, calcStageCompletionPercent } from "@/config/workflowConfig";
+import { buildStagesConfig, MODULES_REQUIRING_SITE_ENGINEER, calcStageCompletionPercent, isStageWorkComplete } from "@/config/workflowConfig";
 import { STAGE_MANUAL_FIELDS, getStageManualFieldRules } from "@/config/stageManualFields";
 import { getSiteEngineerReviews } from "@/api/extensionApi";
 import JobChatPanel from "@/components/JobChatPanel";
@@ -303,21 +303,23 @@ export default function JobView() {
                         ? "Pending"
                         : null);
                 const needsSiteEngineer = MODULES_REQUIRING_SITE_ENGINEER.includes(stage.key);
-                const awaitingSE =
-                  seStatus === "Pending" ||
-                  data?.stageStatus === "Awaiting Site Engineer";
+                const awaitingSE = seStatus === "Pending";
                 const rejectedBySE = seStatus === "Rejected";
                 const acceptedBySE = seStatus === "Approved";
-                const isComplete = needsSiteEngineer
-                  ? (acceptedBySE && !!data?.isCompleted) ||
-                    (!seStatus && !!data?.isCompleted)
-                  : !!(data?.isCompleted || data?.stageStatus === "Complete");
+                const workComplete = isStageWorkComplete(data);
+                const isComplete = workComplete;
                 const stageStatus =
                   rejectedBySE
                     ? "Rejected by Site Engineer"
+                    : workComplete && awaitingSE
+                      ? "Complete — SE Review Pending"
+                    : workComplete && acceptedBySE
+                      ? "Accepted by Site Engineer"
+                    : workComplete
+                      ? "Complete"
                     : awaitingSE
                       ? "Awaiting Site Engineer"
-                      : data?.stageStatus || (isComplete ? "Complete" : "Pending");
+                      : data?.stageStatus || "Pending";
                 const color = isComplete
                   ? "green"
                   : rejectedBySE
@@ -349,11 +351,14 @@ export default function JobView() {
                               {isComplete ? "Completed" : stageStatus}
                             </Tag>
                           )}
-                          {needsSiteEngineer && !seStatus && !data?.moduleWorkComplete && (
-                            <Tag>Pending</Tag>
+                          {needsSiteEngineer && workComplete && seStatus === "Pending" && (
+                            <Tag color="orange">SE Review Pending</Tag>
                           )}
-                          {needsSiteEngineer && awaitingSE && (
-                            <Tag color="orange">Pending Site Engineer Review</Tag>
+                          {needsSiteEngineer && workComplete && !seStatus && (
+                            <Tag color="green">Completed</Tag>
+                          )}
+                          {needsSiteEngineer && !workComplete && !seStatus && (
+                            <Tag>Pending</Tag>
                           )}
                           {needsSiteEngineer && acceptedBySE && (
                             <Tag color="green">Accepted by Site Engineer</Tag>
