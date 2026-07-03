@@ -71,11 +71,14 @@ const markModuleCompleteForReview = async (jobId, stageKey, completedBy) => {
   }
 
   stage.moduleWorkComplete = true;
-  stage.completedAt = new Date();
+  stage.isCompleted = true;
+  stage.stageStatus = "Complete";
+  stage.completedAt = stage.completedAt || new Date();
   stage.completedBy = completedBy || stage.completedBy || "Module";
-  stage.siteEngineerStatus = "Pending";
-  stage.stageStatus = "Awaiting Site Engineer";
-  stage.isCompleted = false;
+
+  if (stage.siteEngineerStatus !== "Approved") {
+    stage.siteEngineerStatus = "Pending";
+  }
 
   await ensureModuleReview(jobId, stageKey);
 

@@ -211,7 +211,7 @@ function calcStageCompletionPercent(stageData = {}) {
     stageData.stageStatus === "Awaiting Site Engineer" ||
     stageData.siteEngineerStatus === "Pending"
   ) {
-    return 85;
+    return stageData.moduleWorkComplete || stageData.isCompleted ? 100 : 85;
   }
   const subtasks = Array.isArray(stageData.subtasks) ? stageData.subtasks : [];
   if (subtasks.length) {
@@ -256,19 +256,25 @@ function syncStageFromSubtasks(stageData = {}) {
   return stageData;
 }
 
-function isStageComplete(job, stageKey) {
+function isStageWorkComplete(job, stageKey) {
   const wf = job?.workflowEvents?.[stageKey];
   if (!wf) return false;
 
-  const workDone = !!(wf.isCompleted || wf.stageStatus === "Complete");
-  if (!workDone) return false;
-
-  const seStatus = wf.siteEngineerStatus;
-  if (!seStatus || seStatus === "NotRequired" || seStatus === "Approved") {
-    return true;
+  if (stageKey === "siteEngineerApproval") {
+    return !!(wf.isCompleted || wf.stageStatus === "Complete");
   }
 
-  return false;
+  return !!(
+    wf.isCompleted ||
+    wf.stageStatus === "Complete" ||
+    wf.moduleWorkComplete ||
+    wf.siteEngineerStatus === "Approved"
+  );
+}
+
+function isStageComplete(job, stageKey) {
+  // Pipeline gates: work finished is enough — SE sign-off is enforced at job closure only.
+  return isStageWorkComplete(job, stageKey);
 }
 
 function isStageAwaitingSiteEngineer(job, stageKey) {
@@ -290,6 +296,32 @@ function toPlainWorkflowEvents(workflowEvents) {
   } catch {
     return { ...workflowEvents };
   }
+}
+
+function normalizeWorkflowProgression(workflowEvents = {}) {
+  const wf = ensureV3WorkflowEvents(workflowEvents);
+
+  for (const key of getAllWorkflowStageKeys()) {
+    const stage = wf[key];
+    if (!stage || key === "siteEngineerApproval") continue;
+
+    if (
+      stage.moduleWorkComplete &&
+      !stage.isCompleted &&
+      stage.siteEngineerStatus !== "Rejected"
+    ) {
+      stage.isCompleted = true;
+      if (
+        !stage.stageStatus ||
+        stage.stageStatus === "Awaiting Site Engineer" ||
+        stage.stageStatus === "Pending"
+      ) {
+        stage.stageStatus = "Complete";
+      }
+    }
+  }
+
+  return wf;
 }
 
 function ensureV3WorkflowEvents(workflowEvents = {}) {
@@ -359,6 +391,7 @@ module.exports = {
   calcJobCompletionPercent,
   calcStageCompletionPercent,
   syncStageFromSubtasks,
+  isStageWorkComplete,
   isStageComplete,
   isStageAwaitingSiteEngineer,
   ensureV3WorkflowEvents,
@@ -366,4 +399,5 @@ module.exports = {
   toPlainWorkflowEvents,
   applyWorkflowEventsToJob,
   migrateJobWorkflowToV3,
+  normalizeWorkflowProgression,
 };

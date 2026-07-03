@@ -15,6 +15,7 @@
     "seed:users": "node src/scripts/seedUsers.js",
     "seed:demo": "node src/scripts/seedDemoData.js --fresh",
     "seed:demo:lite": "node src/scripts/seedDemoLite.js",
+    "seed:seven": "node src/scripts/seedDemoSeven.js --force",
     "check:modules": "node src/scripts/checkModulesDemo.js"
   },
   "dependencies": {

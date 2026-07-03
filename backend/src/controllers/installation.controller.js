@@ -3,6 +3,7 @@ const Installation = require("../models/appModels/Installation");
 const InstallationSummary = require("../models/appModels/InstallationSummary");
 const Job = require("../models/appModels/Job");
 const { markModuleCompleteForReview } = require("../utils/moduleSiteEngineerGate");
+const { validateSiteEngineerSignoffBeforeJobClose } = require("../utils/workflowGates");
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
@@ -521,6 +522,15 @@ exports.finalize = async (req, res) => {
                 runValidators: true,
             }
         );
+
+        const job = await Job.findById(jobId);
+        const seGate = validateSiteEngineerSignoffBeforeJobClose(job);
+        if (!seGate.ok) {
+            return res.status(400).json({
+                success: false,
+                message: seGate.message,
+            });
+        }
 
         await markModuleCompleteForReview(jobId, "installation", "Installation Module");
         await markModuleCompleteForReview(jobId, "jobCompletion", "Installation Module");

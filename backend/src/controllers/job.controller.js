@@ -18,8 +18,9 @@ const {
   ensureV3WorkflowEvents,
   getTimelineWorkflowVersion,
   migrateJobWorkflowToV3,
+  normalizeWorkflowProgression,
 } = require("../utils/workflowDefaults");
-const { validateStageCompletion } = require("../utils/workflowGates");
+const { validateStageCompletion, validateSiteEngineerSignoffBeforeJobClose } = require("../utils/workflowGates");
 const { validateStageManualFields } = require("../utils/stageManualFields");
 const { processMilestoneBilling } = require("../utils/milestoneBilling");
 const { notifyCustomer } = require("../services/notificationService");
@@ -38,7 +39,7 @@ const generateJobId = () => {
 const attachJobMetrics = (jobDoc) => {
   const job = jobDoc?.toObject ? jobDoc.toObject() : { ...jobDoc };
   const wfVersion = getTimelineWorkflowVersion(job);
-  job.workflowEvents = ensureV3WorkflowEvents(job.workflowEvents || {});
+  job.workflowEvents = normalizeWorkflowProgression(job.workflowEvents || {});
   job.workflowVersion = wfVersion;
   const autoPercent = calcJobCompletionPercent(job.workflowEvents, wfVersion);
   job.autoCompletionPercent = autoPercent;
@@ -264,11 +265,6 @@ exports.updateJob = async (req, res) => {
 
           if (requiresSiteEngineerCheck(key)) {
             payload.workflowEvents[key] = { ...merged };
-            delete payload.workflowEvents[key].isCompleted;
-            payload.workflowEvents[key].stageStatus =
-              payload.workflowEvents[key].stageStatus === "Complete"
-                ? "In Progress"
-                : payload.workflowEvents[key].stageStatus || "In Progress";
             seStagesToSubmit.push(key);
           }
         }
@@ -377,25 +373,22 @@ exports.updateJobStage = async (req, res) => {
       }
 
       if (requiresSiteEngineerCheck(stageName)) {
-        job.workflowEvents[stageName] = {
+        job.workflowEvents[stageName] = normalizeStageStatus({
           ...existingStage,
           ...updateData,
-        };
-        delete job.workflowEvents[stageName].isCompleted;
-        job.workflowEvents[stageName].stageStatus =
-          job.workflowEvents[stageName].stageStatus === "Complete"
-            ? "In Progress"
-            : job.workflowEvents[stageName].stageStatus || "In Progress";
+          isCompleted: true,
+          stageStatus: "Complete",
+          completedAt: updateData.completedAt || new Date(),
+          completedBy: actor,
+        });
 
         if (Array.isArray(updateData.subtasks)) {
+          job.workflowEvents[stageName].subtasks = updateData.subtasks;
           job.workflowEvents[stageName] = syncStageFromSubtasks(
             job.workflowEvents[stageName]
           );
-          delete job.workflowEvents[stageName].isCompleted;
-          job.workflowEvents[stageName].stageStatus =
-            job.workflowEvents[stageName].stageStatus === "Complete"
-              ? "In Progress"
-              : job.workflowEvents[stageName].stageStatus || "In Progress";
+          job.workflowEvents[stageName].isCompleted = true;
+          job.workflowEvents[stageName].stageStatus = "Complete";
         }
 
         job.markModified("workflowEvents");
@@ -403,17 +396,21 @@ exports.updateJobStage = async (req, res) => {
 
         await markModuleCompleteForReview(id, stageName, `${actor} (Manual)`);
 
-        await processMilestoneBilling(
-          job,
-          actor
-        );
+        await processMilestoneBilling(job, actor);
 
         const refreshed = await Job.findById(id);
         return res.status(200).json({
           success: true,
           result: attachJobMetrics(refreshed || job),
-          message: `${stageName} submitted for site engineer review`,
+          message: `${stageName} marked complete — site engineer review queued`,
         });
+      }
+
+      if (stageName === "jobCompletion" && willComplete) {
+        const seGate = validateSiteEngineerSignoffBeforeJobClose(job);
+        if (!seGate.ok) {
+          return res.status(400).json({ success: false, message: seGate.message });
+        }
       }
     }
 
