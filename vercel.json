@@ -4,11 +4,8 @@
   "installCommand": "npm install --prefix backend",
   "buildCommand": "echo \"API-only deployment\"",
   "outputDirectory": ".",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api" }
-  ],
   "functions": {
-    "api/index.js": {
+    "api/**/*.js": {
       "includeFiles": "backend/**"
     }
   }
