@@ -68,6 +68,10 @@ app.use("/api/auth", authRouter);
 // Example => /api/settings/public
 app.use("/api/settings", settingsPublicRoutes);
 
+// GridFS / cloud file downloads (signed URL — no auth header needed in new tab)
+const fileDownloadController = require("./controllers/fileDownload.controller");
+app.get("/api/files/:id", fileDownloadController.download);
+
 // Public downloads & public APIs
 app.use("/download", coreDownloadRouter);
 app.use("/public", corePublicRouter);

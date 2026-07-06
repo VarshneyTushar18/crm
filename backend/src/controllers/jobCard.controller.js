@@ -5,6 +5,7 @@ const Job = require("../models/appModels/Job");
 const Installation = require("../models/appModels/Installation");
 const ScheduleAssignment = require("../models/appModels/ScheduleAssignment");
 const { sortInstallationItems } = require("../utils/installationSequence");
+const { persistFiles } = require("../utils/persistUpload");
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
@@ -359,7 +360,8 @@ exports.uploadFiles = async (req, res) => {
     }
 
     const files = req.files || [];
-    const uploadedUrls = files.map((f) => `/uploads/job-cards/${f.filename}`);
+    const persisted = await persistFiles(files, "job-cards");
+    const uploadedUrls = persisted.map((f) => f.url);
     card.photoUrls = [...(card.photoUrls || []), ...uploadedUrls];
     await card.save();
 

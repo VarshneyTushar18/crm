@@ -5,6 +5,7 @@ const Job = mongoose.models.Job;
 const Drafting = mongoose.models.Drafting;
 const Quote = mongoose.models.Quote;
 const { markModuleCompleteForReview } = require("../utils/moduleSiteEngineerGate");
+const { persistFiles } = require("../utils/persistUpload");
 
 const assertPhotosForComplete = (photoUrls, isCompleting) => {
   if (isCompleting && (!Array.isArray(photoUrls) || photoUrls.length === 0)) {
@@ -328,7 +329,8 @@ exports.uploadFiles = async (req, res) => {
     }
 
     const files = req.files || [];
-    const uploadedUrls = files.map((f) => `/uploads/site-measurement/${f.filename}`);
+    const persisted = await persistFiles(files, "site-measurement");
+    const uploadedUrls = persisted.map((f) => f.url);
 
     measurement.photoUrls = [...(measurement.photoUrls || []), ...uploadedUrls];
     await measurement.save();

@@ -4,6 +4,7 @@ const Drafting = mongoose.models.Drafting;
 const Job = mongoose.models.Job;
 const { ensureReviewForDrafting } = require("../utils/siteEngineerReview");
 const { markModuleCompleteForReview } = require("../utils/moduleSiteEngineerGate");
+const { persistFile } = require("../utils/persistUpload");
 const { validateStageCompletion } = require("../utils/workflowGates");
 
 if (!Drafting) throw new Error("Drafting model not loaded");
@@ -222,7 +223,8 @@ exports.uploadPdf = async (req, res) => {
       return res.status(400).json({ success: false, message: "No PDF file uploaded" });
     }
 
-    record.fileUrl = `/uploads/drafting/${file.filename}`;
+    const persisted = await persistFile(file, "drafting");
+    record.fileUrl = persisted.url;
     await record.save();
 
     return res.json({

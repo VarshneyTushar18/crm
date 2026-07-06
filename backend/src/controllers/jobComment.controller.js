@@ -2,6 +2,7 @@ const JobComment = require("../models/appModels/JobComment");
 const Job = require("../models/appModels/Job");
 const ScheduleAssignment = require("../models/appModels/ScheduleAssignment");
 const { notifyJobComment } = require("../services/notificationService");
+const { persistFiles } = require("../utils/persistUpload");
 
 const getActor = (req) => ({
   id: req.user?._id || req.admin?._id || null,
@@ -9,11 +10,13 @@ const getActor = (req) => ({
   role: req.user?.role || req.admin?.role || "admin",
 });
 
-const mapUploadedFiles = (files = []) =>
-  files.map((file) => ({
-    fileUrl: `/uploads/job-comments/${file.filename}`,
-    originalName: file.originalname || file.filename,
+const mapUploadedFiles = async (files = []) => {
+  const persisted = await persistFiles(files, "job-comments");
+  return persisted.map((file) => ({
+    fileUrl: file.url,
+    originalName: file.originalName,
   }));
+};
 
 exports.myAssignedJobs = async (req, res) => {
   try {
@@ -96,7 +99,7 @@ exports.listByJob = async (req, res) => {
 exports.create = async (req, res) => {
   try {
     const { message, attachments } = req.body || {};
-    const uploaded = mapUploadedFiles(req.files || []);
+    const uploaded = await mapUploadedFiles(req.files || []);
     const bodyAttachments = Array.isArray(attachments) ? attachments : [];
     const allAttachments = [...bodyAttachments, ...uploaded];
 

@@ -11,7 +11,7 @@ const handleUploadErrors = (err, req, res, next) => {
     return res.status(400).json({ success: false, message });
   }
 
-  if (/files are allowed|Invalid file type|Only PDF/i.test(String(err.message || ""))) {
+  if (/files are allowed|Invalid file type|Only PDF|EROFS|read-only|EACCES/i.test(String(err.message || ""))) {
     return res.status(400).json({ success: false, message: err.message });
   }
 

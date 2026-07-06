@@ -8,6 +8,7 @@ const {
   calcEta,
   DEFAULT_TRAVEL_MINUTES,
 } = require("../utils/travelEstimate");
+const { persistFiles } = require("../utils/persistUpload");
 
 const getActor = (req) =>
   req.user?.name || req.user?.email || req.admin?.name || "System";
@@ -350,9 +351,10 @@ exports.uploadFiles = async (req, res) => {
     }
 
     const files = req.files || [];
-    const uploaded = files.map((f) => ({
-      fileUrl: `/uploads/scheduling/${f.filename}`,
-      originalName: f.originalname || f.filename,
+    const persisted = await persistFiles(files, "scheduling");
+    const uploaded = persisted.map((f) => ({
+      fileUrl: f.url,
+      originalName: f.originalName,
     }));
 
     assignment.attachments = [...(assignment.attachments || []), ...uploaded];

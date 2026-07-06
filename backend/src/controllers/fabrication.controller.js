@@ -2,6 +2,7 @@ const Fabrication = require("../models/appModels/Fabrication");
 const FabricationProgressLog = require("../models/appModels/FabricationProgressLog");
 const Job = require("../models/appModels/Job");
 const { markModuleCompleteForReview } = require("../utils/moduleSiteEngineerGate");
+const { persistFiles } = require("../utils/persistUpload");
 
 const getActor = (req) =>
   req.user?.name || req.user?.email || req.admin?.name || "System";
@@ -389,7 +390,8 @@ exports.uploadFiles = async (req, res) => {
     }
 
     const files = req.files || [];
-    const uploadedUrls = files.map((f) => `/uploads/fabrication/${f.filename}`);
+    const persisted = await persistFiles(files, "fabrication");
+    const uploadedUrls = persisted.map((f) => f.url);
 
     item.photoUrls = [...(item.photoUrls || []), ...uploadedUrls];
     await item.save();

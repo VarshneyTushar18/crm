@@ -20,11 +20,15 @@ export const ACCESS_TOKEN_NAME = 'x-auth-token';
 
 export const FILE_BASE_URL = import.meta.env.VITE_FILE_BASE_URL || BACKEND;
 
-/** Build absolute URL for uploaded files (/uploads/...) */
+/** Build absolute URL for uploaded files (/uploads/... or /api/files/...) */
 export const buildFileUrl = (fileUrl = "") => {
   if (!fileUrl) return "";
   if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) {
     return fileUrl;
+  }
+  if (fileUrl.startsWith("/api/")) {
+    const apiOrigin = API_BASE_URL.replace(/\/api\/?$/, "");
+    return `${apiOrigin}${fileUrl}`;
   }
   const base = FILE_BASE_URL.endsWith("/") ? FILE_BASE_URL : `${FILE_BASE_URL}/`;
   return `${base}${String(fileUrl).replace(/^\//, "")}`;

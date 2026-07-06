@@ -9,6 +9,7 @@ const {
     validateInstallationStatusChange,
     getNextSequenceOrder,
 } = require("../utils/installationSequence");
+const { persistFile, persistFiles } = require("../utils/persistUpload");
 
 const sumHoursLog = (hoursLog = []) =>
     (Array.isArray(hoursLog) ? hoursLog : []).reduce(
@@ -29,13 +30,36 @@ const toDateOrNull = (value) => {
     return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const mapFile = (file) => ({
-    originalName: file.originalname || "",
-    filename: file.filename || "",
-    path: file.filename ? `/uploads/installation/${file.filename}` : file.path || "",
-    mimetype: file.mimetype || "",
-    size: file.size || 0,
-});
+const mapFile = async (file) => {
+    if (!file) {
+        return {
+            originalName: "",
+            filename: "",
+            path: "",
+            mimetype: "",
+            size: 0,
+        };
+    }
+
+    if (file.buffer) {
+        const persisted = await persistFile(file, "installation");
+        return {
+            originalName: file.originalname || "",
+            filename: persisted.filename,
+            path: persisted.url,
+            mimetype: file.mimetype || "",
+            size: file.size || 0,
+        };
+    }
+
+    return {
+        originalName: file.originalname || "",
+        filename: file.filename || "",
+        path: file.filename ? `/uploads/installation/${file.filename}` : file.path || "",
+        mimetype: file.mimetype || "",
+        size: file.size || 0,
+    };
+};
 
 const backfillSequenceOrder = async (jobId) => {
     const items = await Installation.find({ jobId });
@@ -577,10 +601,10 @@ exports.finalize = async (req, res) => {
                     completionConfirmed: true,
                     completionConfirmedAt: new Date(),
                     ...(signatureFile && {
-                        customerSignatureFile: mapFile(signatureFile),
+                        customerSignatureFile: await mapFile(signatureFile),
                     }),
-                    completionPictures: pictureFiles.map(mapFile),
-                    completionDocuments: documentFiles.map(mapFile),
+                    completionPictures: await Promise.all(pictureFiles.map(mapFile)),
+                    completionDocuments: await Promise.all(documentFiles.map(mapFile)),
                 },
             },
             {
@@ -706,7 +730,8 @@ exports.uploadActivityFiles = async (req, res) => {
         }
 
         const files = req.files || [];
-        const uploadedUrls = files.map((f) => `/uploads/installation/${f.filename}`);
+        const persisted = await persistFiles(files, "installation");
+        const uploadedUrls = persisted.map((f) => f.url);
 
         item.photoUrls = [...(item.photoUrls || []), ...uploadedUrls];
         await item.save();
