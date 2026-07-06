@@ -143,8 +143,24 @@ export function calcJobCompletionPercent(workflowEvents = {}, jobOrVersion = 3) 
   return Math.round(total / keys.length);
 }
 
-/** True when stage work is finished enough to unlock the next module in the UI. */
-export function isStageWorkComplete(stageData = {}) {
+/** Resolve SE status from workflow stage + linked module review (review Approved wins over stale Pending). */
+export function resolveSiteEngineerStatus(stageData = {}, moduleReview = null) {
+  const wfStatus = stageData?.siteEngineerStatus;
+  const reviewStatus = moduleReview?.status;
+
+  const reviewApproved = reviewStatus === "Approved";
+  const reviewRejected =
+    reviewStatus === "Rejected" || reviewStatus === "Revision Required";
+  const reviewPending = ["Pending", "Pending Review", "On Review", "On Hold"].includes(
+    reviewStatus
+  );
+
+  if (wfStatus === "Approved" || reviewApproved) return "Approved";
+  if (wfStatus === "Rejected" || reviewRejected) return "Rejected";
+  if (wfStatus === "Pending" || reviewPending) return "Pending";
+  return wfStatus || null;
+}
+
   if (!stageData || typeof stageData !== "object") return false;
   if (stageData.isCompleted || stageData.stageStatus === "Complete") return true;
   if (stageData.siteEngineerStatus === "Approved") return true;

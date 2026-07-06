@@ -5,7 +5,7 @@ import { DollarOutlined, FileTextOutlined, PlusOutlined, DownloadOutlined } from
 import axios from "axios";
 import dayjs from "dayjs";
 import { API_BASE_URL } from '@/config/serverApiConfig';
-import { buildStagesConfig, MODULES_REQUIRING_SITE_ENGINEER, calcStageCompletionPercent, isStageWorkComplete, isStageComplete } from "@/config/workflowConfig";
+import { buildStagesConfig, MODULES_REQUIRING_SITE_ENGINEER, calcStageCompletionPercent, isStageWorkComplete, isStageComplete, resolveSiteEngineerStatus } from "@/config/workflowConfig";
 import { STAGE_MANUAL_FIELDS, getStageManualFieldRules } from "@/config/stageManualFields";
 import { getSiteEngineerReviews } from "@/api/extensionApi";
 import JobChatPanel from "@/components/JobChatPanel";
@@ -330,16 +330,7 @@ export default function JobView() {
               {stagesConfig.map((stage) => {
                 const data = job?.workflowEvents?.[stage.key] || {};
                 const moduleReview = moduleReviewMap[stage.key];
-                const reviewStatus = moduleReview?.status;
-                const seStatus =
-                  data?.siteEngineerStatus ||
-                  (reviewStatus === "Approved"
-                    ? "Approved"
-                    : reviewStatus === "Rejected"
-                      ? "Rejected"
-                      : reviewStatus === "Pending"
-                        ? "Pending"
-                        : null);
+                const seStatus = resolveSiteEngineerStatus(data, moduleReview);
                 const needsSiteEngineer = MODULES_REQUIRING_SITE_ENGINEER.includes(stage.key);
                 const awaitingSE = seStatus === "Pending";
                 const rejectedBySE = seStatus === "Rejected";
@@ -390,20 +381,24 @@ export default function JobView() {
                               {isComplete ? "Completed" : stageStatus}
                             </Tag>
                           )}
-                          {needsSiteEngineer && workComplete && seStatus === "Pending" && (
-                            <Tag color="orange">SE Review Pending</Tag>
-                          )}
-                          {needsSiteEngineer && workComplete && !seStatus && (
-                            <Tag color="green">Completed</Tag>
-                          )}
-                          {needsSiteEngineer && !workComplete && !seStatus && (
-                            <Tag>Pending</Tag>
-                          )}
                           {needsSiteEngineer && acceptedBySE && (
                             <Tag color="green">Accepted by Site Engineer</Tag>
                           )}
                           {needsSiteEngineer && rejectedBySE && (
                             <Tag color="red">Rejected by Site Engineer</Tag>
+                          )}
+                          {needsSiteEngineer &&
+                            workComplete &&
+                            awaitingSE &&
+                            !acceptedBySE &&
+                            !rejectedBySE && (
+                            <Tag color="orange">SE Review Pending</Tag>
+                          )}
+                          {needsSiteEngineer && workComplete && !seStatus && !acceptedBySE && (
+                            <Tag color="green">Completed</Tag>
+                          )}
+                          {needsSiteEngineer && !workComplete && !seStatus && (
+                            <Tag>Pending</Tag>
                           )}
                         </h4>
                         <Progress

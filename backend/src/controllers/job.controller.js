@@ -24,6 +24,7 @@ const { validateStageCompletion, validateSiteEngineerSignoffBeforeJobClose } = r
 const { validateStageManualFields } = require("../utils/stageManualFields");
 const { processMilestoneBilling } = require("../utils/milestoneBilling");
 const { notifyCustomer } = require("../services/notificationService");
+const { syncApprovedModuleReviewsToWorkflow } = require("../utils/syncModuleReviewWorkflow");
 
 const MANUAL_PROGRESS_VALUES = [20, 40, 60, 80, 100];
 
@@ -94,6 +95,8 @@ exports.readJob = async (req, res) => {
       await migrateJobWorkflowToV3(job);
       job = await Job.findById(req.params.id);
     }
+
+    job = await syncApprovedModuleReviewsToWorkflow(job);
 
     return res.status(200).json({
       success: true,

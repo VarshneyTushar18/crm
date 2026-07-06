@@ -174,13 +174,40 @@ exports.updateStatus = async (req, res) => {
 
     const actor = getActor(req);
     const fromStatus = review.status;
-    review.status = status;
-    if (comments) review.comments = comments;
-    if (["On Review", "Approved", "Rejected", "On Hold"].includes(status)) {
-      review.reviewedBy = actor;
-      review.reviewedAt = new Date();
+
+    if (review.reviewType === "module" && review.moduleStageKey) {
+      if (status === "Approved") {
+        await approveModuleReview(review, actor);
+      } else if (status === "Rejected") {
+        if (!comments) {
+          return res.status(400).json({
+            success: false,
+            message: "comments are required when rejecting a module review",
+          });
+        }
+        await rejectModuleReview(review, actor, comments);
+      } else {
+        review.status = status;
+        if (comments) review.comments = comments;
+        if (["On Review", "On Hold"].includes(status)) {
+          review.reviewedBy = actor;
+          review.reviewedAt = new Date();
+        }
+        await review.save();
+        await syncJobSiteEngineerStage(review.jobId, actor);
+      }
+    } else {
+      review.status = status;
+      if (comments) review.comments = comments;
+      if (["On Review", "Approved", "Rejected", "On Hold"].includes(status)) {
+        review.reviewedBy = actor;
+        review.reviewedAt = new Date();
+      }
+      await review.save();
+      await syncJobSiteEngineerStage(review.jobId, actor);
     }
-    await review.save();
+
+    const refreshed = await SiteEngineerReview.findById(review._id);
 
     await logHistory({
       reviewId: review._id,
@@ -195,11 +222,9 @@ exports.updateStatus = async (req, res) => {
       actor,
     });
 
-    await syncJobSiteEngineerStage(review.jobId, actor);
-
     return res.json({
       success: true,
-      result: review,
+      result: refreshed || review,
       message: `Status updated to ${status}`,
     });
   } catch (err) {
