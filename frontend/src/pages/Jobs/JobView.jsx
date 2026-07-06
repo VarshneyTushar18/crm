@@ -10,6 +10,7 @@ import { STAGE_MANUAL_FIELDS, getStageManualFieldRules } from "@/config/stageMan
 import { getSiteEngineerReviews } from "@/api/extensionApi";
 import JobChatPanel from "@/components/JobChatPanel";
 import { updateJob } from "./jobApi";
+import { useJob } from "@/context/JobContext";
 
 const MANUAL_PROGRESS_OPTIONS = [20, 40, 60, 80, 100];
 
@@ -128,6 +129,7 @@ function getStagesConfigForJob(job) {
 export default function JobView() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { pinJob } = useJob();
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -181,6 +183,7 @@ export default function JobView() {
       if (res.data?.success) {
         const data = res.data.result;
         setJob(data);
+        pinJob(data);
       }
       try {
         const reviews = await getSiteEngineerReviews(id);

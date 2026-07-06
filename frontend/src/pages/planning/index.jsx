@@ -21,6 +21,8 @@ import {
 } from "antd";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useJob } from "../../context/JobContext";
+import WorkflowJobSelector from "@/components/WorkflowJobSelector";
+import { withPinnedJob } from "@/utils/workflowJobScope";
 import {
   getPlanningTasks,
   createPlanningTask,
@@ -70,7 +72,7 @@ const STATUS_COLORS = {
 export default function Planning() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { activeJobId, setActiveJobId } = useJob();
+  const { activeJobId, setActiveJobId, isJobPinned } = useJob();
 
   const [jobs, setJobs] = useState([]);
   const [jobData, setJobData] = useState(null);
@@ -91,12 +93,15 @@ export default function Planning() {
   const jobId = queryJobId || activeJobId || localStorage.getItem("activeJobId");
   const jobKey = jobId ? `activeJobData_${jobId}` : null;
 
-  // ✅ only planning-eligible jobs
+  // Planning is early in the workflow — show active jobs (pinned job always included via selector).
   const eligibleJobs = useMemo(() => {
-    return jobs.filter(
-      (job) => job?.workflowEvents?.siteMeasurement?.isCompleted
-    );
+    return jobs.filter((job) => job?.systemState !== "Closed");
   }, [jobs]);
+
+  const pickerJobs = useMemo(
+    () => withPinnedJob(jobs, eligibleJobs, jobId),
+    [jobs, eligibleJobs, jobId]
+  );
 
   const fetchJobs = async () => {
     try {
@@ -185,6 +190,16 @@ export default function Planning() {
   }, []);
 
   useEffect(() => {
+    if (jobId && !queryJobId) {
+      navigate(`/admin/planning?jobId=${jobId}`, {
+        replace: true,
+        state: location.state,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId, queryJobId]);
+
+  useEffect(() => {
     const init = async () => {
       if (!jobId) {
         setJobData(null);
@@ -195,17 +210,9 @@ export default function Planning() {
       const job = await resolveJobData(jobId);
 
       if (!job) {
-        message.warning("Please select a job first");
-        return;
-      }
-
-      if (!job?.workflowEvents?.siteMeasurement?.isCompleted) {
-        message.warning(
-          "This job is not eligible for Planning. Complete Site Measurement first."
-        );
-        setJobData(null);
-        setData([]);
-        navigate("/admin/planning");
+        if (!isJobPinned) {
+          message.warning("Please select a job first");
+        }
         return;
       }
 
@@ -218,6 +225,7 @@ export default function Planning() {
 
   const onJobChange = async (selectedJobId) => {
     if (!selectedJobId) {
+      if (isJobPinned) return;
       setJobData(null);
       setData([]);
       localStorage.removeItem("activeJobId");
@@ -225,10 +233,12 @@ export default function Planning() {
       return;
     }
 
-    const selectedJob = eligibleJobs.find((j) => j._id === selectedJobId);
+    const selectedJob =
+      pickerJobs.find((j) => j._id === selectedJobId) ||
+      jobs.find((j) => j._id === selectedJobId);
 
     if (!selectedJob) {
-      message.warning("Only site measurement completed jobs are allowed in Planning");
+      message.warning("Job not found");
       return;
     }
 
@@ -504,55 +514,27 @@ export default function Planning() {
         </Space>
       </Space>
 
-      <Card style={{ marginBottom: 16 }}>
-        <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} md={12} lg={10}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Search Eligible Job</div>
-            <Select
-              showSearch
-              allowClear
-              placeholder="Select eligible job"
-              style={{ width: "100%" }}
-              value={jobId || undefined}
-              onChange={onJobChange}
-              loading={loadingJobs}
-              optionFilterProp="children"
-            >
-              {eligibleJobs.map((job) => (
-                <Option key={job._id} value={job._id}>
-                  {job.jobId} - {job.customer || "No customer"}
-                </Option>
-              ))}
-            </Select>
-          </Col>
-
-          <Col xs={24} md={12} lg={8}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Current Selection</div>
-            <Input
-              readOnly
-              value={
-                jobData
-                  ? `${jobData.jobId || "-"} | ${jobData.customer || "-"}`
-                  : ""
-              }
-              placeholder="No eligible job selected"
-            />
-          </Col>
-
-          <Col xs={24} lg={6}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Planning Status</div>
-            {data.length > 0 ? (
-              <Tag color="green">Planning Tasks Available</Tag>
-            ) : (
-              <Tag color="orange">No Planning Tasks</Tag>
-            )}
-          </Col>
-        </Row>
-      </Card>
+      <WorkflowJobSelector
+        basePath="/admin/planning"
+        jobs={jobs}
+        eligibleJobs={eligibleJobs}
+        jobId={jobId}
+        jobData={jobData}
+        loadingJobs={loadingJobs}
+        onJobChange={onJobChange}
+        pickerLabel="Search Job"
+        statusSlot={
+          data.length > 0 ? (
+            <Tag color="green">Planning Tasks Available</Tag>
+          ) : (
+            <Tag color="orange">No Planning Tasks</Tag>
+          )
+        }
+      />
 
       {!jobId ? (
         <Card>
-          <Empty description="Please select an eligible job to continue." />
+          <Empty description="Please select a job to continue." />
         </Card>
       ) : !jobData ? (
         <Card>

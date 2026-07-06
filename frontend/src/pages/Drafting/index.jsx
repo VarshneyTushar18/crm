@@ -22,6 +22,8 @@ import {
 import { UploadOutlined, EyeOutlined } from "@ant-design/icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useJob } from "../../context/JobContext";
+import WorkflowJobSelector from "@/components/WorkflowJobSelector";
+import { withPinnedJob } from "@/utils/workflowJobScope";
 import { buildFileUrl } from "@/config/serverApiConfig";
 import { isPdfFile } from "@/utils/fileUploadUtils";
 import SendForSiteEngineerButton from "@/components/SendForSiteEngineerButton";
@@ -68,7 +70,7 @@ const DRAFT_STATUS_COLORS = {
 export default function Drafting() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { activeJobId, setActiveJobId } = useJob();
+  const { activeJobId, setActiveJobId, isJobPinned } = useJob();
 
   const [jobs, setJobs] = useState([]);
   const [jobData, setJobData] = useState(null);
@@ -93,13 +95,13 @@ export default function Drafting() {
   const jobKey = jobId ? `activeJobData_${jobId}` : null;
 
   const eligibleJobs = useMemo(() => {
-    return jobs.filter(
-      (job) =>
-        job?.workflowEvents?.planning?.isCompleted ||
-        job?.workflowEvents?.clientApproval?.isCompleted ||
-        String(job?.stage || "").toLowerCase() === "drafting"
-    );
+    return jobs.filter((job) => job?.systemState !== "Closed");
   }, [jobs]);
+
+  const pickerJobs = useMemo(
+    () => withPinnedJob(jobs, eligibleJobs, jobId),
+    [jobs, eligibleJobs, jobId]
+  );
 
   const fetchJobs = async () => {
     try {
@@ -188,6 +190,16 @@ export default function Drafting() {
   }, []);
 
   useEffect(() => {
+    if (jobId && !queryJobId) {
+      navigate(`/admin/drafting?jobId=${jobId}`, {
+        replace: true,
+        state: location.state,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId, queryJobId]);
+
+  useEffect(() => {
     const init = async () => {
       if (!jobId) {
         setJobData(null);
@@ -198,21 +210,9 @@ export default function Drafting() {
       const job = await resolveJobData(jobId);
 
       if (!job) {
-        message.warning("Please select a job first");
-        return;
-      }
-
-      if (
-        !job?.workflowEvents?.planning?.isCompleted &&
-        !job?.workflowEvents?.clientApproval?.isCompleted &&
-        String(job?.stage || "").toLowerCase() !== "drafting"
-      ) {
-        message.warning(
-          "This job is not eligible for Drafting. Complete Planning first."
-        );
-        setJobData(null);
-        setRecords([]);
-        navigate("/admin/drafting");
+        if (!isJobPinned) {
+          message.warning("Please select a job first");
+        }
         return;
       }
 
@@ -225,6 +225,7 @@ export default function Drafting() {
 
   const onJobChange = (selectedJobId) => {
     if (!selectedJobId) {
+      if (isJobPinned) return;
       setJobData(null);
       setRecords([]);
       localStorage.removeItem("activeJobId");
@@ -232,10 +233,12 @@ export default function Drafting() {
       return;
     }
 
-    const selectedJob = eligibleJobs.find((j) => j._id === selectedJobId);
+    const selectedJob =
+      pickerJobs.find((j) => j._id === selectedJobId) ||
+      jobs.find((j) => j._id === selectedJobId);
 
     if (!selectedJob) {
-      message.warning("Only drafting-eligible jobs are allowed here");
+      message.warning("Job not found");
       return;
     }
 
@@ -569,55 +572,27 @@ export default function Drafting() {
         </Space>
       </Space>
 
-      <Card style={{ marginBottom: 16 }}>
-        <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} md={12} lg={10}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Search Eligible Job</div>
-            <Select
-              showSearch
-              allowClear
-              placeholder="Select eligible job"
-              style={{ width: "100%" }}
-              value={jobId || undefined}
-              onChange={onJobChange}
-              loading={loadingJobs}
-              optionFilterProp="children"
-            >
-              {eligibleJobs.map((job) => (
-                <Option key={job._id} value={job._id}>
-                  {job.jobId} - {job.customer || "No customer"}
-                </Option>
-              ))}
-            </Select>
-          </Col>
-
-          <Col xs={24} md={12} lg={8}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Current Selection</div>
-            <Input
-              readOnly
-              value={
-                jobData
-                  ? `${jobData.jobId || "-"} | ${jobData.customer || "-"}`
-                  : ""
-              }
-              placeholder="No eligible job selected"
-            />
-          </Col>
-
-          <Col xs={24} lg={6}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Drafting Status</div>
-            {records.length > 0 ? (
-              <Tag color="green">Drafting Records Available</Tag>
-            ) : (
-              <Tag color="orange">No Drafting Records</Tag>
-            )}
-          </Col>
-        </Row>
-      </Card>
+      <WorkflowJobSelector
+        basePath="/admin/drafting"
+        jobs={jobs}
+        eligibleJobs={eligibleJobs}
+        jobId={jobId}
+        jobData={jobData}
+        loadingJobs={loadingJobs}
+        onJobChange={onJobChange}
+        pickerLabel="Search Job"
+        statusSlot={
+          records.length > 0 ? (
+            <Tag color="green">Drafting Records Available</Tag>
+          ) : (
+            <Tag color="orange">No Drafting Records</Tag>
+          )
+        }
+      />
 
       {!jobId ? (
         <Card>
-          <Empty description="Please select an eligible job to continue." />
+          <Empty description="Please select a job to continue." />
         </Card>
       ) : !jobData ? (
         <Card>

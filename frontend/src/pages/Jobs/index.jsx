@@ -27,7 +27,7 @@ export default function Jobs() {
 
   const [stateFilter, setStateFilter] = useState("All");
 
-  const { setActiveJobId } = useJob();
+  const { pinJob } = useJob();
   const navigate = useNavigate();
 
 
@@ -60,10 +60,7 @@ export default function Jobs() {
       return false;
     }
 
-    setActiveJobId(jobObjectId);
-    localStorage.setItem("activeJobId", jobObjectId);
-    localStorage.setItem(`activeJobData_${jobObjectId}`, JSON.stringify(job));
-    localStorage.setItem("activeJobData", JSON.stringify(job));
+    pinJob(job);
     return true;
   };
 
@@ -139,7 +136,11 @@ export default function Jobs() {
       render: (_, record) => {
         return (
           <Space>
-            <Button type="primary" size="small" onClick={() => navigate(`/admin/job/${record._id}`)}>
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => openJob(record, `/admin/job/${record._id}`)}
+            >
               View Timeline
             </Button>
             <Popconfirm title="Archive/Delete Job?" onConfirm={() => handleDelete(record._id)}>

@@ -28,6 +28,7 @@ import {
 import { UploadOutlined } from "@ant-design/icons";
 import { uploadMeasurementFiles } from "@/api/phase1Api";
 import SendForSiteEngineerButton from "@/components/SendForSiteEngineerButton";
+import WorkflowJobSelector from "@/components/WorkflowJobSelector";
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -44,7 +45,7 @@ export default function SiteMeasurement() {
   const [form] = Form.useForm();
   const location = useLocation();
   const navigate = useNavigate();
-  const { activeJobId, setActiveJobId } = useJob();
+  const { activeJobId, setActiveJobId, pinJob, isJobPinned, clearJobPin } = useJob();
 
   const [jobs, setJobs] = useState([]);
   const [selectedJobId, setSelectedJobId] = useState(null);
@@ -70,10 +71,7 @@ export default function SiteMeasurement() {
 
   const setCurrentJobContext = (job) => {
     if (!job?._id) return;
-    setActiveJobId(job._id);
-    localStorage.setItem("activeJobId", job._id);
-    localStorage.setItem(`activeJobData_${job._id}`, JSON.stringify(job));
-    localStorage.setItem("activeJobData", JSON.stringify(job));
+    pinJob(job);
     setSelectedJob(job);
   };
 
@@ -267,20 +265,23 @@ export default function SiteMeasurement() {
   }, [selectedJobId]);
 
   const onJobChange = (jobObjectId) => {
-    setSelectedJobId(jobObjectId || null);
-    if (jobObjectId) {
-      const job = jobs.find((j) => j._id === jobObjectId);
-      if (job) setCurrentJobContext(job);
-      navigate(`/admin/site-measurement?jobId=${jobObjectId}`);
-    } else {
+    if (!jobObjectId) {
+      if (isJobPinned) return;
       setActiveJobId("");
-      localStorage.removeItem("activeJobId");
+      clearJobPin();
       navigate(`/admin/site-measurement`);
+      setSelectedJobId(null);
       setSelectedJob(null);
       setCurrentMeasurement(null);
       form.resetFields();
       setIsEditMode(false);
+      return;
     }
+
+    setSelectedJobId(jobObjectId);
+    const job = jobs.find((j) => j._id === jobObjectId);
+    if (job) setCurrentJobContext(job);
+    navigate(`/admin/site-measurement?jobId=${jobObjectId}`);
   };
 
   const onSubmit = async (values) => {
@@ -475,51 +476,22 @@ export default function SiteMeasurement() {
         />
       )}
 
-      <Card style={{ marginBottom: 16 }}>
-        <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} md={12} lg={10}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Search Job</div>
-            <Select
-              showSearch
-              allowClear
-              placeholder="Select job"
-              style={{ width: "100%" }}
-              value={selectedJobId || resolvedJobId || undefined}
-              onChange={onJobChange}
-              loading={loadingJobs}
-              optionFilterProp="children"
-            >
-              {jobs.map((job) => (
-                <Option key={job._id} value={job._id}>
-                  {job.jobId} - {job.customer || "No customer"}
-                </Option>
-              ))}
-            </Select>
-          </Col>
-
-          <Col xs={24} md={12} lg={8}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Current Selection</div>
-            <Input
-              readOnly
-              value={
-                selectedJob
-                  ? `${selectedJob.jobId || "-"} | ${selectedJob.customer || "-"}`
-                  : ""
-              }
-              placeholder="No job selected"
-            />
-          </Col>
-
-          <Col xs={24} lg={6}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Measurement Status</div>
-            {currentMeasurement ? (
-              <Tag color="green">Measurement Saved</Tag>
-            ) : (
-              <Tag color="orange">New Measurement</Tag>
-            )}
-          </Col>
-        </Row>
-      </Card>
+      <WorkflowJobSelector
+        basePath="/admin/site-measurement"
+        jobs={jobs}
+        eligibleJobs={jobs}
+        jobId={selectedJobId || resolvedJobId}
+        jobData={selectedJob}
+        loadingJobs={loadingJobs}
+        onJobChange={onJobChange}
+        statusSlot={
+          currentMeasurement ? (
+            <Tag color="green">Measurement Saved</Tag>
+          ) : (
+            <Tag color="orange">New Measurement</Tag>
+          )
+        }
+      />
 
       {loadingJob ? (
         <Card>

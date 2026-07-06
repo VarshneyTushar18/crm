@@ -145,6 +145,14 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
 
   const go = (p) => `${basePath}${p}`;
 
+  const goWithJob = (p) => {
+    const path = go(p);
+    const jobId = localStorage.getItem("activeJobId");
+    const pinned = localStorage.getItem("jobPinnedFromTimeline") === "true";
+    if (pinned && jobId) return `${path}?jobId=${jobId}`;
+    return path;
+  };
+
   const items = useMemo(
     () => {
       if (userRole === "siteEngineer") {
@@ -187,27 +195,27 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
           {
             key: "site-measurement",
             icon: <TagOutlined />,
-            label: <Link to={go("/site-measurement")}>Site Measurement</Link>,
+            label: <Link to={goWithJob("/site-measurement")}>Site Measurement</Link>,
           },
           {
             key: "planning",
             icon: <TagOutlined />,
-            label: <Link to={go("/planning")}>Planning</Link>,
+            label: <Link to={goWithJob("/planning")}>Planning</Link>,
           },
           {
             key: "scheduling",
             icon: <CalendarOutlined />,
-            label: <Link to={go("/scheduling")}>Scheduling</Link>,
+            label: <Link to={goWithJob("/scheduling")}>Scheduling</Link>,
           },
           {
             key: "drafting",
             icon: <FileTextOutlined />,
-            label: <Link to={go("/drafting")}>Drafting</Link>,
+            label: <Link to={goWithJob("/drafting")}>Drafting</Link>,
           },
           {
             key: "site-engineer",
             icon: <AuditOutlined />,
-            label: <Link to={go("/site-engineer")}>SE Approvals</Link>,
+            label: <Link to={goWithJob("/site-engineer")}>SE Approvals</Link>,
           },
         ],
       },
@@ -219,22 +227,22 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
           {
             key: "job-scheduling",
             icon: <FilterOutlined />,
-            label: <Link to={go("/kanban")}>Job Scheduling</Link>,
+            label: <Link to={goWithJob("/kanban")}>Job Scheduling</Link>,
           },
           {
             key: "material-purchase",
             icon: <ToolOutlined />,
-            label: <Link to={go("/material-purchase")}>Material Purchase</Link>,
+            label: <Link to={goWithJob("/material-purchase")}>Material Purchase</Link>,
           },
           {
             key: "fabrication",
             icon: <TagsOutlined />,
-            label: <Link to={go("/fabrication")}>Fabrication</Link>,
+            label: <Link to={goWithJob("/fabrication")}>Fabrication</Link>,
           },
           {
             key: "qc",
             icon: <ContainerOutlined />,
-            label: <Link to={go("/qc")}>Quality Control</Link>,
+            label: <Link to={goWithJob("/qc")}>Quality Control</Link>,
           },
         ],
       },
@@ -246,7 +254,7 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
           {
             key: "installation",
             icon: <ShopOutlined />,
-            label: <Link to={go("/installation")}>Installation</Link>,
+            label: <Link to={goWithJob("/installation")}>Installation</Link>,
           },
         ],
       },
