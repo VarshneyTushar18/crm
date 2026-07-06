@@ -151,3 +151,14 @@ export function isStageWorkComplete(stageData = {}) {
   if (stageData.moduleWorkComplete) return true;
   return false;
 }
+
+/** True when a stage is fully cleared for pipeline progression (work + SE approval when required). */
+export function isStageComplete(job, stageKey) {
+  const stageData = job?.workflowEvents?.[stageKey] || {};
+  if (!isStageWorkComplete(stageData)) return false;
+  if (stageKey === "siteEngineerApproval") return true;
+  if (MODULES_REQUIRING_SITE_ENGINEER.includes(stageKey)) {
+    return stageData.siteEngineerStatus === "Approved";
+  }
+  return true;
+}

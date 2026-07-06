@@ -29,8 +29,19 @@ const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
 export default function Attendance() {
-  const currentUserRole = "admin";
-  const currentWorkerEmail = "rahul@example.com";
+  const storedUser = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const currentUserRole =
+    String(storedUser?.role || "admin").toLowerCase() === "worker"
+      ? "worker"
+      : "admin";
+  const currentWorkerEmail = String(storedUser?.email || "").trim();
 
   const [employees, setEmployees] = useState([]);
   const [attendanceData, setAttendanceData] = useState([]);

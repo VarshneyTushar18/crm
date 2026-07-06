@@ -169,6 +169,7 @@ export default function Scheduling() {
       status: "Scheduled",
       assignmentType: "General",
       role: "Site Engineer",
+      priority: 3,
       timeRange: [dayjs().hour(9).minute(0), dayjs().hour(17).minute(0)],
       travelTimeMinutes: 0,
     });
@@ -190,6 +191,7 @@ export default function Scheduling() {
         ? [record.assigneeId]
         : [],
       status: record.status,
+      priority: record.priority ?? 3,
       location: record.location,
       notes: record.notes,
       travelTimeMinutes: record.travelTimeMinutes,
@@ -257,6 +259,7 @@ export default function Scheduling() {
       startTime: start?.toISOString(),
       endTime: end?.toISOString(),
       travelTimeMinutes: Number(values.travelTimeMinutes || 0),
+      priority: Number(values.priority || 3),
       status: values.status,
       location: values.location || jobData?.site || "",
       latitude: values.latitude != null ? Number(values.latitude) : null,
@@ -299,6 +302,17 @@ export default function Scheduling() {
 
   const columns = [
     { title: "Title", dataIndex: "title" },
+    {
+      title: "Priority",
+      dataIndex: "priority",
+      width: 90,
+      render: (v) => {
+        const p = Number(v || 3);
+        const color = p <= 1 ? "red" : p <= 2 ? "orange" : p <= 3 ? "blue" : "default";
+        return <Tag color={color}>P{p}</Tag>;
+      },
+      sorter: (a, b) => Number(a.priority || 3) - Number(b.priority || 3),
+    },
     { title: "Role", dataIndex: "role" },
     {
       title: "Teams",
@@ -559,7 +573,16 @@ export default function Scheduling() {
                 <InputNumber min={0} style={{ width: "100%" }} />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col span={6}>
+              <Form.Item
+                name="priority"
+                label="Priority"
+                tooltip="1 = highest, 5 = lowest"
+              >
+                <InputNumber min={1} max={5} style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
               <Form.Item name="status" label="Status">
                 <Select options={STATUSES.map((s) => ({ value: s, label: s }))} />
               </Form.Item>

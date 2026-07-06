@@ -51,7 +51,7 @@ import {
 } from "./fabricationApi";
 import SendForSiteEngineerButton from "@/components/SendForSiteEngineerButton";
 import { buildFileUrl } from "@/config/serverApiConfig";
-import { isStageWorkComplete } from "@/config/workflowConfig";
+import { isStageComplete } from "@/config/workflowConfig";
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -190,8 +190,8 @@ export default function Fabrication() {
   const eligibleJobs = useMemo(() => {
     return jobs.filter(
       (job) =>
-        isStageWorkComplete(job?.workflowEvents?.drafting) &&
-        isStageWorkComplete(job?.workflowEvents?.materialPurchasing)
+        isStageComplete(job, "drafting") &&
+        isStageComplete(job, "materialPurchasing")
     );
   }, [jobs]);
 
@@ -395,13 +395,13 @@ export default function Fabrication() {
         return;
       }
 
-      if (!isStageWorkComplete(job?.workflowEvents?.drafting)) {
+      if (!isStageComplete(job, "drafting")) {
         message.warning("This job is not eligible for Fabrication. Complete Drafting first.");
         clearStaleJobSelection();
         return;
       }
 
-      if (!isStageWorkComplete(job?.workflowEvents?.materialPurchasing)) {
+      if (!isStageComplete(job, "materialPurchasing")) {
         message.warning(
           "This job is not eligible for Fabrication. Complete Material Purchase first."
         );

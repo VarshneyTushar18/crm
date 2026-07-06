@@ -34,7 +34,7 @@ import {
   createNcrItem,
   recordReinspection,
 } from "./ncrApi";
-import { isStageWorkComplete } from "@/config/workflowConfig";
+import { isStageComplete } from "@/config/workflowConfig";
 
 import { markPowderCoatingComplete } from "@/api/extensionApi";
 
@@ -116,9 +116,7 @@ export default function QC() {
 
   const eligibleJobs = useMemo(() => {
     return Array.isArray(jobs)
-      ? jobs.filter((job) =>
-          isStageWorkComplete(job?.workflowEvents?.fabrication || {})
-        )
+      ? jobs.filter((job) => isStageComplete(job, "fabrication"))
       : [];
   }, [jobs]);
 
@@ -238,7 +236,7 @@ export default function QC() {
         return;
       }
 
-      if (!isStageWorkComplete(job?.workflowEvents?.fabrication || {})) {
+      if (!isStageComplete(job, "fabrication")) {
         message.warning("This job is not eligible for Quality Control.");
         setJobData(null);
         setItems([]);

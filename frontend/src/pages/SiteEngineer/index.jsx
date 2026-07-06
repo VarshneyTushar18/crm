@@ -225,6 +225,21 @@ export default function SiteEngineer() {
 
   const isSiteEngineerUser = userRole === "siteEngineer";
 
+  const assignedJobIds = useMemo(() => {
+    const ids = new Set();
+    for (const review of allReviews) {
+      const id = review?.jobId?._id || review?.jobId;
+      if (id) ids.add(String(id));
+    }
+    return ids;
+  }, [allReviews]);
+
+  const jobsForPicker = useMemo(() => {
+    if (!isSiteEngineerUser) return jobs;
+    if (!assignedJobIds.size) return jobs;
+    return jobs.filter((job) => assignedJobIds.has(String(job._id)));
+  }, [jobs, isSiteEngineerUser, assignedJobIds]);
+
   const statusTag = (status) => {
     const normalized = normalizeStatus(status);
     const color =
@@ -414,7 +429,7 @@ export default function SiteEngineer() {
               }
               optionFilterProp="children"
             >
-              {jobs.map((job) => (
+              {jobsForPicker.map((job) => (
                 <Option key={job._id} value={job._id}>
                   {job.jobId} - {job.customer || "No customer"}
                 </Option>

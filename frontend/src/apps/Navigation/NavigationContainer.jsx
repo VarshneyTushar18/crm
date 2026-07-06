@@ -266,6 +266,11 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
             label: <Link to={go("/contact-requests")}>Contact Requests</Link>,
           },
           {
+            key: "notification-receipts",
+            icon: <MailOutlined />,
+            label: <Link to={go("/notification-receipts")}>Notification Receipts</Link>,
+          },
+          {
             key: "suppliers",
             icon: <ShopOutlined />,
             label: <Link to={go("/suppliers")}>Suppliers</Link>,
@@ -365,6 +370,7 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
     installation: "execution-group",
     customer: "business-group",
     "contact-requests": "business-group",
+    "notification-receipts": "business-group",
     invoice: "business-group",
     payment: "business-group",
     employee: "hr-group",

@@ -12,10 +12,13 @@ import {
   Typography,
   message,
   Spin,
+  Button,
 } from "antd";
+import { DownloadOutlined } from "@ant-design/icons";
 import { getJobs } from "../Jobs/jobApi";
 import { getEmployees } from "../Employee/employeeApi";
 import { getProductivitySummary } from "./productivityApi";
+import dayjs from "dayjs";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -96,14 +99,64 @@ export default function Productivity() {
     return Object.entries(byModule).map(([name, hours]) => ({ name, hours }));
   }, [data]);
 
+  const exportCsv = () => {
+    const entries = data?.entries || [];
+    if (!entries.length) {
+      message.warning("No entries to export for the current filters");
+      return;
+    }
+
+    const headers = [
+      "Date",
+      "Worker",
+      "Hours",
+      "Module",
+      "Job",
+      "Reference",
+      "Role",
+      "Notes",
+    ];
+    const rows = entries.map((row) =>
+      [
+        row.workDate || "",
+        row.workerName || "",
+        row.hours ?? "",
+        row.module || "",
+        row.jobCode || "",
+        row.reference || "",
+        row.role || "",
+        String(row.notes || "").replace(/"/g, '""'),
+      ]
+        .map((cell) => `"${cell}"`)
+        .join(",")
+    );
+
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `productivity-${dayjs().format("YYYY-MM-DD")}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    message.success("CSV exported");
+  };
+
   return (
     <div style={{ padding: 16 }}>
-      <Title level={3} style={{ marginBottom: 4 }}>
-        Productivity & Time Tracking
-      </Title>
-      <Text type="secondary">
-        Unified hours from fabrication, installation job cards, installation activities, and attendance.
-      </Text>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <Title level={3} style={{ marginBottom: 4 }}>
+            Productivity & Time Tracking
+          </Title>
+          <Text type="secondary">
+            Unified hours from fabrication, installation job cards, installation activities, and attendance.
+          </Text>
+        </div>
+        <Button icon={<DownloadOutlined />} onClick={exportCsv} disabled={!data?.entries?.length}>
+          Export CSV
+        </Button>
+      </div>
 
       <Card style={{ marginTop: 16, marginBottom: 16 }}>
         <Row gutter={[16, 16]}>

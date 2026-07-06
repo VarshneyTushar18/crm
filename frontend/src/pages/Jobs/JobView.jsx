@@ -1,14 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Card, Timeline, Button, Modal, Form, DatePicker, InputNumber, Input, message, Switch, Descriptions, Tag, Divider, Row, Col, Space, Table, Tabs, Progress } from "antd";
+import { Card, Timeline, Button, Modal, Form, DatePicker, InputNumber, Input, message, Switch, Descriptions, Tag, Divider, Row, Col, Space, Table, Tabs, Progress, Select } from "antd";
 import { DollarOutlined, FileTextOutlined, PlusOutlined, DownloadOutlined } from "@ant-design/icons";
 import axios from "axios";
 import dayjs from "dayjs";
 import { API_BASE_URL } from '@/config/serverApiConfig';
-import { buildStagesConfig, MODULES_REQUIRING_SITE_ENGINEER, calcStageCompletionPercent, isStageWorkComplete } from "@/config/workflowConfig";
+import { buildStagesConfig, MODULES_REQUIRING_SITE_ENGINEER, calcStageCompletionPercent, isStageWorkComplete, isStageComplete } from "@/config/workflowConfig";
 import { STAGE_MANUAL_FIELDS, getStageManualFieldRules } from "@/config/stageManualFields";
 import { getSiteEngineerReviews } from "@/api/extensionApi";
 import JobChatPanel from "@/components/JobChatPanel";
+import { updateJob } from "./jobApi";
+
+const MANUAL_PROGRESS_OPTIONS = [20, 40, 60, 80, 100];
 
 // Standard Auth Headers
 const authHeaders = () => {
@@ -271,6 +274,25 @@ export default function JobView() {
   if (loading) return <Card loading={true} />;
   if (!job) return <Card>Job Not Found</Card>;
 
+  const displayPercent =
+    job.manualProgressPercent != null
+      ? job.manualProgressPercent
+      : job.autoCompletionPercent ?? job.completionPercent ?? 0;
+
+  const handleManualProgressChange = async (value) => {
+    try {
+      await updateJob(id, { manualProgressPercent: value ?? null });
+      message.success(
+        value != null
+          ? `Client progress set to ${value}%`
+          : "Using automatic progress from workflow stages"
+      );
+      fetchJob();
+    } catch (err) {
+      message.error(err?.response?.data?.message || "Failed to update progress");
+    }
+  };
+
   const activeStageConfig = stagesConfig.find(s => s.key === activeStage);
 
   return (
@@ -283,9 +305,22 @@ export default function JobView() {
           >
             <div style={{ marginBottom: 16 }}>
               <div style={{ marginBottom: 4 }}>Overall completion</div>
-              <Progress percent={job.autoCompletionPercent ?? job.completionPercent ?? 0} status="active" />
+              <Progress percent={displayPercent} status="active" />
               <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
-                Calculated from completed workflow stages ({stagesConfig.length} stages)
+                {job.manualProgressPercent != null
+                  ? `Manual client progress (${job.manualProgressPercent}%) — auto from stages: ${job.autoCompletionPercent ?? 0}%`
+                  : `Calculated from completed workflow stages (${stagesConfig.length} stages)`}
+              </div>
+              <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 13 }}>Manual client progress:</span>
+                <Select
+                  allowClear
+                  placeholder="Auto (from stages)"
+                  style={{ width: 200 }}
+                  value={job.manualProgressPercent ?? undefined}
+                  onChange={handleManualProgressChange}
+                  options={MANUAL_PROGRESS_OPTIONS.map((v) => ({ value: v, label: `${v}%` }))}
+                />
               </div>
             </div>
             <Timeline>
@@ -307,12 +342,13 @@ export default function JobView() {
                 const rejectedBySE = seStatus === "Rejected";
                 const acceptedBySE = seStatus === "Approved";
                 const workComplete = isStageWorkComplete(data);
-                const isComplete = workComplete;
+                const pipelineComplete = isStageComplete(job, stage.key);
+                const isComplete = pipelineComplete;
                 const stageStatus =
                   rejectedBySE
                     ? "Rejected by Site Engineer"
                     : workComplete && awaitingSE
-                      ? "Complete — SE Review Pending"
+                      ? "Complete — awaiting SE approval"
                     : workComplete && acceptedBySE
                       ? "Accepted by Site Engineer"
                     : workComplete

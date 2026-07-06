@@ -96,6 +96,7 @@ import FinanceSettingsModule from "../modules/SettingModule/FinanceSettingsModul
 import GeneralSettingsModule from "../modules/SettingModule/GeneralSettingsModule";
 import MoneyFormatSettingsModule from "../modules/SettingModule/MoneyFormatSettingsModule";
 import Productivity from "../pages/Productivity";
+import NotificationReceipts from "../pages/Notifications";
 import Employee from "@/pages/Employee";
 import { SITE_ENGINEER_HOME } from "@/config/siteEngineerAccess";
 
@@ -184,6 +185,7 @@ export default function AppRouter() {
           {/* ✅ PAYMENT */}
           <Route path="payment" element={<PaymentDataTableModule />} />
           <Route path="contact-requests" element={<ContactRequests />} />
+          <Route path="notification-receipts" element={<NotificationReceipts />} />
           <Route path="suppliers" element={<Suppliers />} />
           <Route path="rfq" element={<RfqPage />} />
           <Route path="purchase-orders" element={<PurchaseOrders />} />

@@ -38,6 +38,7 @@ import dayjs from "dayjs";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useJob } from "../../context/JobContext";
 import { getJobs, updateJob } from "../Jobs/jobApi";
+import { isStageComplete } from "@/config/workflowConfig";
 import { getEmployees } from "../Employee/employeeApi";
 import {
   getInstallationItems,
@@ -336,15 +337,15 @@ export default function Installation() {
   const eligibleJobs = useMemo(() => {
     return Array.isArray(jobs)
       ? jobs.filter((job) => {
-        const stage = String(job?.stage || "").trim();
-
-        return (
-          job?.workflowEvents?.qc?.isCompleted === true ||
-          job?.workflowEvents?.finishing?.isCompleted === true ||
-          stage === "Installation" ||
-          stage === "Closure"
-        );
-      })
+          const stage = String(job?.stage || "").trim();
+          return (
+            isStageComplete(job, "finishing") ||
+            isStageComplete(job, "powderCoatingQc") ||
+            isStageComplete(job, "fabricationQc") ||
+            stage === "Installation" ||
+            stage === "Closure"
+          );
+        })
       : [];
   }, [jobs]);
 

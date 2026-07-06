@@ -40,6 +40,13 @@ const STATUS_COLORS = {
   "On Hold": "orange",
 };
 
+const buildMapsLink = (assignment, site) => {
+  if (assignment?.mapsUrl) return assignment.mapsUrl;
+  const location = assignment?.location || site;
+  if (!location) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+};
+
 export default function WorkerDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -59,6 +66,40 @@ export default function WorkerDashboard() {
   const selectedJob = useMemo(
     () => jobs.find((job) => job._id === selectedJobId) || null,
     [jobs, selectedJobId]
+  );
+
+  const allAssignments = useMemo(() => {
+    const flat = [];
+    for (const job of jobs) {
+      for (const assignment of job.assignments || []) {
+        flat.push({
+          ...assignment,
+          jobCode: job.jobId,
+          job_id: job._id,
+          site: job.site,
+        });
+      }
+    }
+    return flat.sort((a, b) => {
+      const priorityDiff = Number(a.priority || 3) - Number(b.priority || 3);
+      if (priorityDiff !== 0) return priorityDiff;
+      return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+    });
+  }, [jobs]);
+
+  const todayAssignments = useMemo(
+    () => allAssignments.filter((a) => dayjs(a.startTime).isSame(dayjs(), "day")),
+    [allAssignments]
+  );
+
+  const upcomingAssignments = useMemo(
+    () =>
+      allAssignments.filter(
+        (a) =>
+          dayjs(a.startTime).isAfter(dayjs(), "day") &&
+          dayjs(a.startTime).isBefore(dayjs().add(7, "day"), "day")
+      ),
+    [allAssignments]
   );
 
   const loadJobs = async () => {
@@ -198,6 +239,112 @@ export default function WorkerDashboard() {
         Welcome, {user?.name || "Worker"} — execute installer job cards and chat with your team.
       </Text>
 
+      <Card title="My Schedule" style={{ marginTop: 16 }} loading={loading}>
+        <Tabs
+          size="small"
+          items={[
+            {
+              key: "today",
+              label: `Today (${todayAssignments.length})`,
+              children: todayAssignments.length ? (
+                <List
+                  dataSource={todayAssignments}
+                  renderItem={(item) => {
+                    const mapsUrl = buildMapsLink(item, item.site);
+                    return (
+                      <List.Item
+                        actions={[
+                          mapsUrl ? (
+                            <Button
+                              size="small"
+                              type="link"
+                              onClick={() => window.open(mapsUrl, "_blank", "noopener,noreferrer")}
+                            >
+                              Maps
+                            </Button>
+                          ) : null,
+                          <Button
+                            size="small"
+                            onClick={() => setSearchParams({ jobId: item.job_id })}
+                          >
+                            Open Job
+                          </Button>,
+                        ].filter(Boolean)}
+                      >
+                        <List.Item.Meta
+                          title={
+                            <Space wrap>
+                              <span>{item.title}</span>
+                              <Tag color="blue">{item.jobCode}</Tag>
+                              <Tag>P{item.priority || 3}</Tag>
+                            </Space>
+                          }
+                          description={
+                            <Space direction="vertical" size={2}>
+                              <Text type="secondary">
+                                {dayjs(item.startTime).format("HH:mm")} –{" "}
+                                {dayjs(item.endTime).format("HH:mm")} · {item.status}
+                              </Text>
+                              <Text>{item.location || item.site || "No site address"}</Text>
+                            </Space>
+                          }
+                        />
+                      </List.Item>
+                    );
+                  }}
+                />
+              ) : (
+                <Text type="secondary">No assignments scheduled for today.</Text>
+              ),
+            },
+            {
+              key: "upcoming",
+              label: `Next 7 days (${upcomingAssignments.length})`,
+              children: upcomingAssignments.length ? (
+                <List
+                  dataSource={upcomingAssignments}
+                  renderItem={(item) => {
+                    const mapsUrl = buildMapsLink(item, item.site);
+                    return (
+                      <List.Item
+                        actions={[
+                          mapsUrl ? (
+                            <Button
+                              size="small"
+                              type="link"
+                              onClick={() => window.open(mapsUrl, "_blank", "noopener,noreferrer")}
+                            >
+                              Maps
+                            </Button>
+                          ) : null,
+                        ].filter(Boolean)}
+                      >
+                        <List.Item.Meta
+                          title={
+                            <Space wrap>
+                              <span>{item.title}</span>
+                              <Tag>{item.jobCode}</Tag>
+                            </Space>
+                          }
+                          description={
+                            <Text type="secondary">
+                              {dayjs(item.startTime).format("ddd DD MMM HH:mm")} ·{" "}
+                              {item.location || item.site || "—"}
+                            </Text>
+                          }
+                        />
+                      </List.Item>
+                    );
+                  }}
+                />
+              ) : (
+                <Text type="secondary">No upcoming assignments in the next 7 days.</Text>
+              ),
+            },
+          ]}
+        />
+      </Card>
+
       <Row gutter={[16, 16]} style={{ marginTop: 20 }}>
         <Col xs={24} lg={9}>
           <Card title="Assigned Jobs" loading={loading}>
@@ -209,6 +356,7 @@ export default function WorkerDashboard() {
                 renderItem={(job) => {
                   const nextAssignment = job.assignments?.[0];
                   const isActive = job._id === selectedJobId;
+                  const mapsUrl = buildMapsLink(nextAssignment, job.site);
                   return (
                     <List.Item
                       style={{
@@ -220,10 +368,30 @@ export default function WorkerDashboard() {
                         border: isActive ? "1px solid #91caff" : "1px solid #f0f0f0",
                       }}
                       onClick={() => setSearchParams({ jobId: job._id })}
+                      actions={
+                        mapsUrl
+                          ? [
+                              <Button
+                                key="maps"
+                                size="small"
+                                type="link"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(mapsUrl, "_blank", "noopener,noreferrer");
+                                }}
+                              >
+                                Maps
+                              </Button>,
+                            ]
+                          : undefined
+                      }
                     >
                       <div style={{ width: "100%" }}>
                         <div style={{ fontWeight: 600 }}>{job.jobId}</div>
                         <div style={{ fontSize: 12, color: "#666" }}>{job.customer || "—"}</div>
+                        <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>
+                          {job.site || nextAssignment?.location || "No site address"}
+                        </div>
                         {nextAssignment ? (
                           <div style={{ marginTop: 6 }}>
                             <Tag color="blue">{nextAssignment.assignmentType}</Tag>
@@ -248,6 +416,24 @@ export default function WorkerDashboard() {
                   label: "Job Cards",
                   children: (
                     <Card title={`Installer Job Cards — ${selectedJob.jobId}`} loading={cardsLoading}>
+                      {selectedJob.site ? (
+                        <Space style={{ marginBottom: 12 }} wrap>
+                          <Text type="secondary">Site: {selectedJob.site}</Text>
+                          <Button
+                            size="small"
+                            type="link"
+                            onClick={() =>
+                              window.open(
+                                buildMapsLink(null, selectedJob.site),
+                                "_blank",
+                                "noopener,noreferrer"
+                              )
+                            }
+                          >
+                            Open in Maps
+                          </Button>
+                        </Space>
+                      ) : null}
                       {productivity?.summary ? (
                         <Space wrap style={{ marginBottom: 16 }}>
                           <Tag color="blue">My hours: {productivity.summary.totalHours}h</Tag>
