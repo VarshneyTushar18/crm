@@ -21,9 +21,12 @@ import {
   Spin,
   Divider,
   Checkbox,
+  Alert,
 } from "antd";
 import {
   ArrowLeftOutlined,
+  ArrowUpOutlined,
+  ArrowDownOutlined,
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
@@ -41,12 +44,20 @@ import {
   createInstallationItem,
   updateInstallationItem,
   deleteInstallationItem,
+  reorderInstallationSequence,
   getInstallationSummary,
   saveInstallationSummary,
   markInstallationComplete,
   finalizeJobCompletion,
   uploadInstallationActivityFiles,
 } from "./installationApi";
+import {
+  getJobCardsByJob,
+  createJobCard,
+  updateJobCard,
+  deleteJobCard,
+  generateJobCardsFromInstallation,
+} from "./jobCardApi";
 import SendForSiteEngineerButton from "@/components/SendForSiteEngineerButton";
 import { buildFileUrl } from "@/config/serverApiConfig";
 
@@ -61,6 +72,15 @@ const normFile = (e) => {
 };
 
 const ACTIVITY_STATUSES = ["Pending", "In Progress", "Completed", "Hold", "Snag"];
+const JOB_CARD_STATUSES = ["Pending", "Assigned", "In Progress", "Completed", "On Hold"];
+
+const JOB_CARD_STATUS_COLORS = {
+  Pending: "default",
+  Assigned: "blue",
+  "In Progress": "processing",
+  Completed: "green",
+  "On Hold": "orange",
+};
 
 const STATUS_COLORS = {
   Pending: "default",
@@ -76,6 +96,32 @@ const JOB_STATUS_COLORS = {
   "On Hold": "warning",
   Completed: "success",
 };
+
+const sortBySequence = (list = []) =>
+  [...list].sort((a, b) => {
+    const orderA = Number(a?.sequenceOrder || 0);
+    const orderB = Number(b?.sequenceOrder || 0);
+    if (orderA !== orderB) return orderA - orderB;
+    return new Date(a?.createdAt || 0) - new Date(b?.createdAt || 0);
+  });
+
+const isActivityLocked = (record, allItems = []) => {
+  if (!record || record.status === "Completed") return false;
+  const order = Number(record.sequenceOrder || 0);
+  return sortBySequence(allItems).some(
+    (item) =>
+      String(item._id) !== String(record._id) &&
+      Number(item.sequenceOrder || 0) < order &&
+      item.status !== "Completed"
+  );
+};
+
+function sumHours(hoursLog = []) {
+  return (Array.isArray(hoursLog) ? hoursLog : []).reduce(
+    (sum, entry) => sum + Number(entry?.hours || 0),
+    0
+  );
+}
 
 export default function Installation() {
   const navigate = useNavigate();
@@ -110,10 +156,17 @@ export default function Installation() {
   const [editingItem, setEditingItem] = useState(null);
 
   const [completionModalOpen, setCompletionModalOpen] = useState(false);
+  const [jobCards, setJobCards] = useState([]);
+  const [jobCardModalOpen, setJobCardModalOpen] = useState(false);
+  const [editingJobCard, setEditingJobCard] = useState(null);
+  const [hoursModalOpen, setHoursModalOpen] = useState(false);
+  const [selectedHoursItem, setSelectedHoursItem] = useState(null);
 
   const [activityForm] = Form.useForm();
   const [summaryForm] = Form.useForm();
   const [completionForm] = Form.useForm();
+  const [jobCardForm] = Form.useForm();
+  const [hoursForm] = Form.useForm();
 
   useEffect(() => {
     loadJobs();
@@ -226,13 +279,15 @@ export default function Installation() {
     try {
       setLoading(true);
 
-      const [activityData, summaryData] = await Promise.all([
+      const [activityData, summaryData, cardData] = await Promise.all([
         getInstallationItems(jobId),
         getInstallationSummary(jobId).catch(() => ({})),
+        getJobCardsByJob(jobId).catch(() => []),
       ]);
 
       const normalizedItems = Array.isArray(activityData) ? activityData : [];
       setItems(normalizedItems);
+      setJobCards(Array.isArray(cardData) ? cardData : []);
 
       const normalizedSummary = {
         installationScheduledDate: summaryData?.installationScheduledDate
@@ -300,6 +355,8 @@ export default function Installation() {
   const totalActualFromActivities = useMemo(() => {
     return items.reduce((sum, item) => sum + Number(item?.actualHours || 0), 0);
   }, [items]);
+
+  const sortedItems = useMemo(() => sortBySequence(items), [items]);
 
   const currentInstallationStatus = useMemo(() => {
     if (!items.length) return "Pending";
@@ -453,6 +510,205 @@ export default function Installation() {
     }
   };
 
+  const openCreateJobCardModal = () => {
+    if (!selectedJob?._id) {
+      message.warning("Please select a job first");
+      return;
+    }
+    setEditingJobCard(null);
+    jobCardForm.resetFields();
+    jobCardForm.setFieldsValue({
+      status: "Pending",
+      expectedHours: 0,
+      assignedInstallers: [],
+    });
+    setJobCardModalOpen(true);
+  };
+
+  const openEditJobCardModal = (record) => {
+    setEditingJobCard(record);
+    jobCardForm.setFieldsValue({
+      title: record.title || "",
+      description: record.description || "",
+      installationId: record.installationId?._id || record.installationId || undefined,
+      locationArea: record.locationArea || "",
+      assignedInstallers: record.assignedInstallers || [],
+      siteAccessNotes: record.siteAccessNotes || "",
+      toolsRequired: record.toolsRequired || "",
+      materialsRequired: record.materialsRequired || "",
+      completionCriteria: record.completionCriteria || "",
+      plannedStart: record.plannedStart ? dayjs(record.plannedStart) : null,
+      plannedEnd: record.plannedEnd ? dayjs(record.plannedEnd) : null,
+      expectedHours: record.expectedHours || 0,
+      status: record.status || "Pending",
+      remarks: record.remarks || "",
+      ppeVerified: !!record.safetyChecklist?.ppeVerified,
+      siteBriefed: !!record.safetyChecklist?.siteBriefed,
+      permitsChecked: !!record.safetyChecklist?.permitsChecked,
+      equipmentInspected: !!record.safetyChecklist?.equipmentInspected,
+    });
+    setJobCardModalOpen(true);
+  };
+
+  const closeJobCardModal = () => {
+    setJobCardModalOpen(false);
+    setEditingJobCard(null);
+    jobCardForm.resetFields();
+  };
+
+  const handleSaveJobCard = async () => {
+    try {
+      const values = await jobCardForm.validateFields();
+      if (!selectedJob?._id) return;
+
+      setSaving(true);
+      const payload = {
+        jobId: selectedJob._id,
+        installationId: values.installationId || null,
+        title: values.title,
+        description: values.description || "",
+        locationArea: values.locationArea || "",
+        assignedInstallers: values.assignedInstallers || [],
+        siteAccessNotes: values.siteAccessNotes || "",
+        toolsRequired: values.toolsRequired || "",
+        materialsRequired: values.materialsRequired || "",
+        completionCriteria: values.completionCriteria || "",
+        plannedStart: values.plannedStart ? values.plannedStart.format("YYYY-MM-DD") : "",
+        plannedEnd: values.plannedEnd ? values.plannedEnd.format("YYYY-MM-DD") : "",
+        expectedHours: Number(values.expectedHours || 0),
+        status: values.status || "Pending",
+        remarks: values.remarks || "",
+        safetyChecklist: {
+          ppeVerified: !!values.ppeVerified,
+          siteBriefed: !!values.siteBriefed,
+          permitsChecked: !!values.permitsChecked,
+          equipmentInspected: !!values.equipmentInspected,
+        },
+      };
+
+      if (editingJobCard?._id) {
+        await updateJobCard(editingJobCard._id, payload);
+        message.success("Job card updated");
+      } else {
+        await createJobCard(payload);
+        message.success("Job card created");
+      }
+
+      closeJobCardModal();
+      await loadInstallationData(selectedJob._id);
+    } catch (err) {
+      if (err?.errorFields) return;
+      message.error(err?.response?.data?.message || "Failed to save job card");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleGenerateJobCards = async () => {
+    if (!selectedJob?._id) return;
+    try {
+      setSaving(true);
+      const res = await generateJobCardsFromInstallation(selectedJob._id);
+      message.success(res?.message || "Job cards generated");
+      await loadInstallationData(selectedJob._id);
+    } catch (err) {
+      message.error(err?.response?.data?.message || "Failed to generate job cards");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteJobCard = async (id) => {
+    try {
+      await deleteJobCard(id);
+      message.success("Job card deleted");
+      if (selectedJob?._id) await loadInstallationData(selectedJob._id);
+    } catch (err) {
+      message.error(err?.response?.data?.message || "Failed to delete job card");
+    }
+  };
+
+  const openHoursModal = (record) => {
+    setSelectedHoursItem(record);
+    hoursForm.resetFields();
+    hoursForm.setFieldsValue({
+      workDate: dayjs(),
+      role: "Installer",
+    });
+    setHoursModalOpen(true);
+  };
+
+  const resetHoursModal = () => {
+    setHoursModalOpen(false);
+    setSelectedHoursItem(null);
+    hoursForm.resetFields();
+  };
+
+  const onAddHours = async (values) => {
+    if (!selectedHoursItem?._id || !selectedJob?._id) return;
+
+    const existingHours = Array.isArray(selectedHoursItem.hoursLog)
+      ? selectedHoursItem.hoursLog
+      : [];
+
+    const newEntry = {
+      workerName: values.workerName,
+      role: values.role || "Installer",
+      hours: Number(values.hours || 0),
+      workDate: values.workDate
+        ? values.workDate.format("YYYY-MM-DD")
+        : dayjs().format("YYYY-MM-DD"),
+      notes: values.notes || "",
+    };
+
+    try {
+      setSaving(true);
+      await updateInstallationItem(selectedHoursItem._id, {
+        hoursLog: [...existingHours, newEntry],
+      });
+      message.success("Worker hours added");
+      resetHoursModal();
+      await loadInstallationData(selectedJob._id);
+    } catch (err) {
+      message.error(err?.response?.data?.message || "Failed to add hours");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleMoveStep = async (record, direction) => {
+    if (!selectedJob?._id) return;
+
+    const ordered = sortBySequence(sortedItems);
+    const currentIndex = ordered.findIndex((item) => item._id === record._id);
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= ordered.length) {
+      return;
+    }
+
+    const reordered = [...ordered];
+    [reordered[currentIndex], reordered[targetIndex]] = [
+      reordered[targetIndex],
+      reordered[currentIndex],
+    ];
+
+    try {
+      setSaving(true);
+      await reorderInstallationSequence(
+        selectedJob._id,
+        reordered.map((item) => item._id)
+      );
+      message.success("Installation sequence updated");
+      await loadInstallationData(selectedJob._id);
+    } catch (err) {
+      console.error(err);
+      message.error(err?.response?.data?.message || "Failed to reorder steps");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSaveSummary = async () => {
     try {
       const values = await summaryForm.validateFields();
@@ -598,6 +854,13 @@ export default function Installation() {
 
   const columns = [
     {
+      title: "Step",
+      dataIndex: "sequenceOrder",
+      key: "sequenceOrder",
+      width: 70,
+      render: (value) => value || "—",
+    },
+    {
       title: "Activity Name",
       dataIndex: "activityName",
       key: "activityName",
@@ -640,6 +903,15 @@ export default function Installation() {
       render: (v) => Number(v || 0),
     },
     {
+      title: "Worker Hours",
+      width: 120,
+      render: (_, record) => (
+        <Tag color={sumHours(record.hoursLog) > 0 ? "blue" : "default"}>
+          {sumHours(record.hoursLog).toFixed(1)}h
+        </Tag>
+      ),
+    },
+    {
       title: "Actual Hours",
       dataIndex: "actualHours",
       key: "actualHours",
@@ -650,9 +922,14 @@ export default function Installation() {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      width: 120,
-      render: (status) => (
-        <Tag color={STATUS_COLORS[status] || "default"}>{status || "—"}</Tag>
+      width: 150,
+      render: (status, record) => (
+        <Space direction="vertical" size={4}>
+          <Tag color={STATUS_COLORS[status] || "default"}>{status || "—"}</Tag>
+          {isActivityLocked(record, sortedItems) ? (
+            <Tag color="orange">Awaiting prior step</Tag>
+          ) : null}
+        </Space>
       ),
     },
     {
@@ -674,20 +951,38 @@ export default function Installation() {
     {
       title: "Actions",
       key: "actions",
-      width: 160,
-      render: (_, record) => (
-        <Space wrap>
-          <Button icon={<EditOutlined />} onClick={() => openEditModal(record)}>
-            Edit
-          </Button>
-          <Popconfirm
-            title="Delete this activity?"
-            onConfirm={() => handleDeleteActivity(record._id)}
-          >
-            <Button danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
-      ),
+      width: 280,
+      render: (_, record) => {
+        const stepIndex = sortedItems.findIndex((item) => item._id === record._id);
+        return (
+          <Space wrap>
+            <Button size="small" onClick={() => openHoursModal(record)}>
+              Add Hours
+            </Button>
+            <Button
+              size="small"
+              icon={<ArrowUpOutlined />}
+              disabled={stepIndex <= 0 || saving}
+              onClick={() => handleMoveStep(record, "up")}
+            />
+            <Button
+              size="small"
+              icon={<ArrowDownOutlined />}
+              disabled={stepIndex >= sortedItems.length - 1 || saving}
+              onClick={() => handleMoveStep(record, "down")}
+            />
+            <Button icon={<EditOutlined />} onClick={() => openEditModal(record)}>
+              Edit
+            </Button>
+            <Popconfirm
+              title="Delete this activity?"
+              onConfirm={() => handleDeleteActivity(record._id)}
+            >
+              <Button danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -746,6 +1041,7 @@ export default function Installation() {
           >
             <div style={{ color: "#666" }}>
               Only QC-approved / Finishing-completed jobs are available here.
+              Installation activities run in sequence — complete each step before starting the next.
             </div>
           </Card>
         </Col>
@@ -974,12 +1270,90 @@ export default function Installation() {
             <Spin spinning={loading}>
               <Table
                 rowKey="_id"
-                dataSource={items}
+                dataSource={sortedItems}
                 columns={columns}
-                scroll={{ x: 1800 }}
+                scroll={{ x: 1900 }}
                 pagination={{ pageSize: 10 }}
               />
             </Spin>
+          </Card>
+        </Col>
+
+        <Col span={24}>
+          <Card
+            title="Installer Job Cards"
+            extra={
+              <Space wrap>
+                <Button onClick={handleGenerateJobCards} disabled={!selectedJob || !sortedItems.length} loading={saving}>
+                  Generate from Activities
+                </Button>
+                <Button type="primary" icon={<PlusOutlined />} onClick={openCreateJobCardModal} disabled={!selectedJob}>
+                  Add Job Card
+                </Button>
+              </Space>
+            }
+          >
+            {!jobCards.length ? (
+              <Empty description="No installer job cards yet. Generate from activities or add manually." />
+            ) : (
+              <Table
+                rowKey="_id"
+                dataSource={jobCards}
+                pagination={{ pageSize: 8 }}
+                scroll={{ x: 1400 }}
+                columns={[
+                  { title: "Card No.", dataIndex: "cardNumber", width: 150 },
+                  { title: "Title", dataIndex: "title", width: 180 },
+                  {
+                    title: "Step",
+                    width: 70,
+                    render: (_, row) => row.sequenceOrder || row.installationId?.sequenceOrder || "—",
+                  },
+                  {
+                    title: "Installers",
+                    dataIndex: "assignedInstallers",
+                    width: 180,
+                    render: (v) => (Array.isArray(v) && v.length ? v.join(", ") : "—"),
+                  },
+                  {
+                    title: "Status",
+                    dataIndex: "status",
+                    width: 120,
+                    render: (status) => (
+                      <Tag color={JOB_CARD_STATUS_COLORS[status] || "default"}>{status}</Tag>
+                    ),
+                  },
+                  {
+                    title: "Hours",
+                    width: 110,
+                    render: (_, row) => `${Number(row.actualHours || 0)} / ${Number(row.expectedHours || 0)}`,
+                  },
+                  {
+                    title: "Safety",
+                    width: 100,
+                    render: (_, row) => {
+                      const checks = row.safetyChecklist || {};
+                      const done = ["ppeVerified", "siteBriefed", "permitsChecked", "equipmentInspected"].filter(
+                        (k) => checks[k]
+                      ).length;
+                      return <Tag color={done === 4 ? "green" : "orange"}>{done}/4</Tag>;
+                    },
+                  },
+                  {
+                    title: "Actions",
+                    width: 150,
+                    render: (_, row) => (
+                      <Space>
+                        <Button size="small" onClick={() => openEditJobCardModal(row)}>Edit</Button>
+                        <Popconfirm title="Delete this job card?" onConfirm={() => handleDeleteJobCard(row._id)}>
+                          <Button size="small" danger>Delete</Button>
+                        </Popconfirm>
+                      </Space>
+                    ),
+                  },
+                ]}
+              />
+            )}
           </Card>
         </Col>
       </Row>
@@ -994,6 +1368,14 @@ export default function Installation() {
         okText="Save"
       >
         <Form form={activityForm} layout="vertical">
+          {editingItem && isActivityLocked(editingItem, sortedItems) ? (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="Earlier installation steps must be completed before this activity can start."
+            />
+          ) : null}
           <Row gutter={[16, 0]}>
             <Col xs={24} md={12}>
               <Form.Item
@@ -1064,7 +1446,15 @@ export default function Installation() {
               >
                 <Select>
                   {ACTIVITY_STATUSES.map((status) => (
-                    <Option key={status} value={status}>
+                    <Option
+                      key={status}
+                      value={status}
+                      disabled={
+                        !!editingItem &&
+                        isActivityLocked(editingItem, sortedItems) &&
+                        ["In Progress", "Completed"].includes(status)
+                      }
+                    >
                       {status}
                     </Option>
                   ))}
@@ -1128,6 +1518,154 @@ export default function Installation() {
                 </Form.Item>
               </Col>
             ) : null}
+          </Row>
+        </Form>
+      </Modal>
+
+      <Modal
+        open={hoursModalOpen}
+        title={
+          selectedHoursItem
+            ? `Add Hours — ${selectedHoursItem.activityName}`
+            : "Add Worker Hours"
+        }
+        onCancel={resetHoursModal}
+        onOk={() => hoursForm.submit()}
+        confirmLoading={saving}
+        okText="Save Hours"
+      >
+        <Form form={hoursForm} layout="vertical" onFinish={onAddHours}>
+          <Form.Item
+            name="workerName"
+            label="Worker Name"
+            rules={[{ required: true, message: "Worker name is required" }]}
+          >
+            <Select showSearch placeholder="Select worker" optionFilterProp="children">
+              {employees.map((emp) => (
+                <Option key={emp._id} value={emp.name}>
+                  {emp.name}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <Form.Item name="role" label="Role">
+            <Input placeholder="Installer" />
+          </Form.Item>
+          <Form.Item
+            name="hours"
+            label="Hours"
+            rules={[{ required: true, message: "Hours are required" }]}
+          >
+            <InputNumber min={0} step={0.5} style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item name="workDate" label="Work Date">
+            <DatePicker style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item name="notes" label="Notes">
+            <TextArea rows={2} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        open={jobCardModalOpen}
+        title={editingJobCard ? "Edit Installer Job Card" : "Add Installer Job Card"}
+        onCancel={closeJobCardModal}
+        onOk={handleSaveJobCard}
+        confirmLoading={saving}
+        width={900}
+        okText="Save"
+      >
+        <Form form={jobCardForm} layout="vertical">
+          <Row gutter={[16, 0]}>
+            <Col xs={24} md={12}>
+              <Form.Item name="title" label="Title" rules={[{ required: true, message: "Title is required" }]}>
+                <Input placeholder="e.g. Level 1 balustrade install" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="installationId" label="Linked Installation Step">
+                <Select allowClear placeholder="Optional link to activity">
+                  {sortedItems.map((item) => (
+                    <Option key={item._id} value={item._id}>
+                      Step {item.sequenceOrder}: {item.activityName}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="locationArea" label="Location / Area">
+                <Input placeholder="Site area" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="assignedInstallers" label="Assigned Installers">
+                <Select mode="multiple" placeholder="Select installers">
+                  {employees.map((emp) => (
+                    <Option key={emp._id} value={emp.name}>
+                      {emp.name}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="plannedStart" label="Planned Start">
+                <DatePicker style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="plannedEnd" label="Planned End">
+                <DatePicker style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item name="expectedHours" label="Expected Hours">
+                <InputNumber min={0} style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item name="status" label="Status">
+                <Select>
+                  {JOB_CARD_STATUSES.map((status) => (
+                    <Option key={status} value={status}>{status}</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col xs={24}>
+              <Form.Item name="siteAccessNotes" label="Site Access Notes">
+                <TextArea rows={2} placeholder="Access, parking, induction requirements..." />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="toolsRequired" label="Tools Required">
+                <TextArea rows={2} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="materialsRequired" label="Materials Required">
+                <TextArea rows={2} />
+              </Form.Item>
+            </Col>
+            <Col xs={24}>
+              <Form.Item name="completionCriteria" label="Completion Criteria">
+                <TextArea rows={2} placeholder="What defines done for this card?" />
+              </Form.Item>
+            </Col>
+            <Col xs={24}>
+              <Divider orientation="left">Safety Checklist</Divider>
+            </Col>
+            <Col xs={12} md={6}><Form.Item name="ppeVerified" valuePropName="checked"><Checkbox>PPE verified</Checkbox></Form.Item></Col>
+            <Col xs={12} md={6}><Form.Item name="siteBriefed" valuePropName="checked"><Checkbox>Site briefed</Checkbox></Form.Item></Col>
+            <Col xs={12} md={6}><Form.Item name="permitsChecked" valuePropName="checked"><Checkbox>Permits checked</Checkbox></Form.Item></Col>
+            <Col xs={12} md={6}><Form.Item name="equipmentInspected" valuePropName="checked"><Checkbox>Equipment inspected</Checkbox></Form.Item></Col>
+            <Col xs={24}>
+              <Form.Item name="remarks" label="Remarks">
+                <TextArea rows={2} />
+              </Form.Item>
+            </Col>
           </Row>
         </Form>
       </Modal>

@@ -95,6 +95,7 @@ import CompanyLogoSettingsModule from "../modules/SettingModule/CompanyLogoSetti
 import FinanceSettingsModule from "../modules/SettingModule/FinanceSettingsModule";
 import GeneralSettingsModule from "../modules/SettingModule/GeneralSettingsModule";
 import MoneyFormatSettingsModule from "../modules/SettingModule/MoneyFormatSettingsModule";
+import Productivity from "../pages/Productivity";
 import Employee from "@/pages/Employee";
 import { SITE_ENGINEER_HOME } from "@/config/siteEngineerAccess";
 
@@ -153,6 +154,7 @@ export default function AppRouter() {
 
           {/* ✅ Other admin pages */}
           <Route path="attendance" element={<Attendance />} />
+          <Route path="productivity" element={<Productivity />} />
           <Route path="leave" element={<LeavePage />} />
           <Route path="employee" element={<Employee />} />
           <Route path="customer" element={<Customer />} />

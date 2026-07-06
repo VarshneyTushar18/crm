@@ -29,6 +29,12 @@ import {
   updateQcItem,
   deleteQcItem,
 } from "./qcApi";
+import {
+  getNcrItems,
+  createNcrItem,
+  recordReinspection,
+} from "./ncrApi";
+import { isStageWorkComplete } from "@/config/workflowConfig";
 
 import { markPowderCoatingComplete } from "@/api/extensionApi";
 
@@ -67,6 +73,12 @@ const QC_STATUS_COLORS = {
   Rework: "orange",
 };
 
+const NCR_STATUS_COLORS = {
+  Open: "gold",
+  "In Progress": "blue",
+  Closed: "green",
+};
+
 export default function QC() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -85,6 +97,14 @@ export default function QC() {
   const [viewItem, setViewItem] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   const [form] = Form.useForm();
+  const [ncrForm] = Form.useForm();
+  const [reinspectForm] = Form.useForm();
+  const [ncrItems, setNcrItems] = useState([]);
+  const [ncrOpen, setNcrOpen] = useState(false);
+  const [reinspectOpen, setReinspectOpen] = useState(false);
+  const [ncrLoading, setNcrLoading] = useState(false);
+  const [selectedQcForNcr, setSelectedQcForNcr] = useState(null);
+  const [selectedNcr, setSelectedNcr] = useState(null);
 
   const queryJobId = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -96,7 +116,9 @@ export default function QC() {
 
   const eligibleJobs = useMemo(() => {
     return Array.isArray(jobs)
-      ? jobs.filter((job) => job?.workflowEvents?.fabrication?.isCompleted)
+      ? jobs.filter((job) =>
+          isStageWorkComplete(job?.workflowEvents?.fabrication || {})
+        )
       : [];
   }, [jobs]);
 
@@ -181,6 +203,22 @@ export default function QC() {
     }
   };
 
+  const fetchNcr = async (resolvedJobId) => {
+    if (!resolvedJobId) {
+      setNcrItems([]);
+      return;
+    }
+    try {
+      const result = await getNcrItems(resolvedJobId);
+      setNcrItems(Array.isArray(result) ? result : []);
+    } catch (err) {
+      message.error(
+        err?.response?.data?.message || err?.message || "Failed to fetch NCR items"
+      );
+      setNcrItems([]);
+    }
+  };
+
   useEffect(() => {
     fetchJobs();
   }, []);
@@ -200,7 +238,7 @@ export default function QC() {
         return;
       }
 
-      if (!job?.workflowEvents?.fabrication?.isCompleted) {
+      if (!isStageWorkComplete(job?.workflowEvents?.fabrication || {})) {
         message.warning("This job is not eligible for Quality Control.");
         setJobData(null);
         setItems([]);
@@ -208,7 +246,7 @@ export default function QC() {
         return;
       }
 
-      await fetchItems(jobId);
+      await Promise.all([fetchItems(jobId), fetchNcr(jobId)]);
     };
 
     init();
@@ -236,6 +274,7 @@ export default function QC() {
     navigate(`/admin/qc?jobId=${selectedJobId}`, {
       state: { job: selectedJob },
     });
+    fetchNcr(selectedJobId);
   };
 
   const resetModal = () => {
@@ -319,7 +358,7 @@ export default function QC() {
         setCurrentJobContext(updatedJobData);
       }
 
-      await fetchItems(jobId);
+      await Promise.all([fetchItems(jobId), fetchNcr(jobId)]);
       resetModal();
     } catch (err) {
       message.error(
@@ -339,7 +378,7 @@ export default function QC() {
 
     try {
       await updateQcItem(record._id, { status: newStatus });
-      await fetchItems(jobId);
+      await Promise.all([fetchItems(jobId), fetchNcr(jobId)]);
     } catch (err) {
       message.error(
         err?.response?.data?.message || err?.message || "Status update failed"
@@ -356,11 +395,100 @@ export default function QC() {
     try {
       await deleteQcItem(record._id);
       message.success("QC item deleted");
-      await fetchItems(jobId);
+      await Promise.all([fetchItems(jobId), fetchNcr(jobId)]);
     } catch (err) {
       message.error(
         err?.response?.data?.message || err?.message || "Delete failed"
       );
+    }
+  };
+
+  const getNcrForQc = (qcId) =>
+    (Array.isArray(ncrItems) ? ncrItems : []).find((n) => {
+      const linkedQcId =
+        typeof n?.qcItemId === "string" ? n.qcItemId : n?.qcItemId?._id;
+      return linkedQcId === qcId;
+    });
+
+  const openCreateNcrModal = (record) => {
+    setSelectedQcForNcr(record);
+    ncrForm.setFieldsValue({
+      title: `NCR for ${record.itemName}`,
+      description: record.remarks || "",
+      dueDate: null,
+    });
+    setNcrOpen(true);
+  };
+
+  const closeNcrModal = () => {
+    setNcrOpen(false);
+    setSelectedQcForNcr(null);
+    ncrForm.resetFields();
+  };
+
+  const onSubmitNcr = async (values) => {
+    if (!jobId || !selectedQcForNcr?._id) return;
+    try {
+      setNcrLoading(true);
+      await createNcrItem({
+        jobId,
+        qcItemId: selectedQcForNcr._id,
+        title: values.title,
+        description: values.description || "",
+        rootCause: values.rootCause || "",
+        correctiveAction: values.correctiveAction || "",
+        assignedTo: values.assignedTo || "",
+        dueDate: values.dueDate ? values.dueDate.format("YYYY-MM-DD") : "",
+      });
+      message.success("NCR created successfully");
+      closeNcrModal();
+      await Promise.all([fetchNcr(jobId), fetchItems(jobId)]);
+    } catch (err) {
+      message.error(
+        err?.response?.data?.message || err?.message || "Failed to create NCR"
+      );
+    } finally {
+      setNcrLoading(false);
+    }
+  };
+
+  const openReinspectModal = (record) => {
+    setSelectedNcr(record);
+    reinspectForm.setFieldsValue({
+      result: "Pass",
+      checkedDate: dayjs(),
+      notes: "",
+    });
+    setReinspectOpen(true);
+  };
+
+  const closeReinspectModal = () => {
+    setReinspectOpen(false);
+    setSelectedNcr(null);
+    reinspectForm.resetFields();
+  };
+
+  const onSubmitReinspect = async (values) => {
+    if (!selectedNcr?._id || !jobId) return;
+    try {
+      setNcrLoading(true);
+      await recordReinspection(selectedNcr._id, {
+        result: values.result,
+        checkedBy: values.checkedBy || "",
+        checkedDate: values.checkedDate
+          ? values.checkedDate.format("YYYY-MM-DD")
+          : "",
+        notes: values.notes || "",
+      });
+      message.success("Re-inspection result recorded");
+      closeReinspectModal();
+      await Promise.all([fetchNcr(jobId), fetchItems(jobId)]);
+    } catch (err) {
+      message.error(
+        err?.response?.data?.message || err?.message || "Failed to record re-inspection"
+      );
+    } finally {
+      setNcrLoading(false);
     }
   };
 
@@ -471,8 +599,37 @@ export default function QC() {
       render: (v) => v || "-",
     },
     {
+      title: "NCR",
+      width: 190,
+      render: (_, record) => {
+        const ncr = getNcrForQc(record._id);
+        if (!ncr) {
+          const canCreate = ["Fail", "Rework"].includes(record.status);
+          return canCreate ? (
+            <Button size="small" onClick={() => openCreateNcrModal(record)}>
+              Create NCR
+            </Button>
+          ) : (
+            "-"
+          );
+        }
+
+        return (
+          <Space direction="vertical" size={4}>
+            <Tag color={NCR_STATUS_COLORS[ncr.status] || "default"}>{ncr.ncrNumber}</Tag>
+            <Tag>{ncr.reinspectionStatus || "Pending"}</Tag>
+            {ncr.status !== "Closed" ? (
+              <Button size="small" type="link" onClick={() => openReinspectModal(ncr)}>
+                Re-inspect
+              </Button>
+            ) : null}
+          </Space>
+        );
+      },
+    },
+    {
       title: "Actions",
-      width: 200,
+      width: 220,
       fixed: "right",
       render: (_, record) => (
         <Space>
@@ -643,6 +800,53 @@ export default function QC() {
               scroll={{ x: 1400 }}
             />
           )}
+
+          <Card title="NCR / Re-inspection Tracker" style={{ marginTop: 16 }}>
+            {!ncrItems.length ? (
+              <Empty description="No NCRs created for this job yet." />
+            ) : (
+              <Table
+                rowKey="_id"
+                pagination={{ pageSize: 5 }}
+                dataSource={ncrItems}
+                columns={[
+                  { title: "NCR No.", dataIndex: "ncrNumber", width: 160 },
+                  { title: "Title", dataIndex: "title", width: 220 },
+                  {
+                    title: "QC Item",
+                    width: 180,
+                    render: (_, row) => row?.qcItemId?.itemName || "-",
+                  },
+                  {
+                    title: "Status",
+                    width: 120,
+                    render: (_, row) => (
+                      <Tag color={NCR_STATUS_COLORS[row.status] || "default"}>
+                        {row.status}
+                      </Tag>
+                    ),
+                  },
+                  {
+                    title: "Re-inspection",
+                    dataIndex: "reinspectionStatus",
+                    width: 140,
+                  },
+                  {
+                    title: "Action",
+                    width: 120,
+                    render: (_, row) =>
+                      row.status !== "Closed" ? (
+                        <Button size="small" onClick={() => openReinspectModal(row)}>
+                          Re-inspect
+                        </Button>
+                      ) : (
+                        "-"
+                      ),
+                  },
+                ]}
+              />
+            )}
+          </Card>
         </>
       )}
 
@@ -739,6 +943,71 @@ export default function QC() {
 
           <Form.Item name="remarks" label="Remarks">
             <TextArea rows={3} placeholder="Optional notes..." />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Create Non-Conformance Report (NCR)"
+        open={ncrOpen}
+        onCancel={closeNcrModal}
+        onOk={() => ncrForm.submit()}
+        okText="Create NCR"
+        confirmLoading={ncrLoading}
+      >
+        <Form form={ncrForm} layout="vertical" onFinish={onSubmitNcr}>
+          <Form.Item
+            name="title"
+            label="Title"
+            rules={[{ required: true, message: "NCR title is required" }]}
+          >
+            <Input placeholder="NCR title" />
+          </Form.Item>
+          <Form.Item name="description" label="Description">
+            <TextArea rows={2} placeholder="Issue details" />
+          </Form.Item>
+          <Form.Item name="rootCause" label="Root Cause">
+            <TextArea rows={2} placeholder="Root cause analysis" />
+          </Form.Item>
+          <Form.Item name="correctiveAction" label="Corrective Action">
+            <TextArea rows={2} placeholder="Corrective action plan" />
+          </Form.Item>
+          <Form.Item name="assignedTo" label="Assigned To">
+            <Input placeholder="Responsible person/team" />
+          </Form.Item>
+          <Form.Item name="dueDate" label="Due Date">
+            <DatePicker style={{ width: "100%" }} format="YYYY-MM-DD" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={selectedNcr ? `Re-inspection: ${selectedNcr.ncrNumber}` : "Re-inspection"}
+        open={reinspectOpen}
+        onCancel={closeReinspectModal}
+        onOk={() => reinspectForm.submit()}
+        okText="Save Result"
+        confirmLoading={ncrLoading}
+      >
+        <Form form={reinspectForm} layout="vertical" onFinish={onSubmitReinspect}>
+          <Form.Item
+            name="result"
+            label="Result"
+            rules={[{ required: true, message: "Result is required" }]}
+          >
+            <Select>
+              <Option value="Pass">Pass</Option>
+              <Option value="Fail">Fail</Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="checkedBy" label="Checked By">
+            <Input placeholder="Inspector name" />
+          </Form.Item>
+          <Form.Item name="checkedDate" label="Checked Date">
+            <DatePicker style={{ width: "100%" }} format="YYYY-MM-DD" />
+          </Form.Item>
+          <Form.Item name="notes" label="Notes">
+            <TextArea rows={3} placeholder="Re-inspection notes" />
           </Form.Item>
         </Form>
       </Modal>

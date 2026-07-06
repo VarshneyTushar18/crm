@@ -56,6 +56,17 @@ export const deleteInstallationItem = async (id) => {
     return unwrap(res);
 };
 
+export const reorderInstallationSequence = async (jobId, orderedIds) => {
+    const res = await axios.patch(
+        `${API_BASE_URL}/installation/reorder/${jobId}`,
+        { orderedIds },
+        {
+            headers: authHeaders(),
+        }
+    );
+    return unwrap(res);
+};
+
 export const getInstallationSummary = async (jobId) => {
     const res = await axios.get(`${API_BASE_URL}/installation/summary/${jobId}`, {
         headers: authHeaders(),

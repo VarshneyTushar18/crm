@@ -313,6 +313,11 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
             label: <Link to={go("/attendance")}>Attendance</Link>,
           },
           {
+            key: "productivity",
+            icon: <UserOutlined />,
+            label: <Link to={go("/productivity")}>Productivity</Link>,
+          },
+          {
             key: "leave",
             icon: <CalendarOutlined />,
             label: <Link to={go("/leave")}>Leave</Link>,
@@ -364,6 +369,7 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
     payment: "business-group",
     employee: "hr-group",
     attendance: "hr-group",
+    productivity: "hr-group",
     leave: "hr-group",
     settings: "system-group",
     about: "system-group",
