@@ -161,6 +161,8 @@ export function resolveSiteEngineerStatus(stageData = {}, moduleReview = null) {
   return wfStatus || null;
 }
 
+/** True when stage work is finished enough to unlock the next module in the UI. */
+export function isStageWorkComplete(stageData = {}) {
   if (!stageData || typeof stageData !== "object") return false;
   if (stageData.isCompleted || stageData.stageStatus === "Complete") return true;
   if (stageData.siteEngineerStatus === "Approved") return true;
