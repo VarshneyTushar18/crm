@@ -213,6 +213,7 @@ const notifyScheduleEta = async (job, assignment) => {
 exports.listByJob = async (req, res) => {
   try {
     const items = await ScheduleAssignment.find({ jobId: req.params.jobId }).sort({
+      priority: 1,
       startTime: 1,
     });
     return res.json({ success: true, result: items });
@@ -239,7 +240,10 @@ exports.calendar = async (req, res) => {
       if (to) filter.startTime.$lte = new Date(to);
     }
 
-    const items = await ScheduleAssignment.find(filter).sort({ startTime: 1 });
+    const items = await ScheduleAssignment.find(filter).sort({
+      priority: 1,
+      startTime: 1,
+    });
     return res.json({ success: true, result: items });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

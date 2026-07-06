@@ -43,7 +43,8 @@ const attachJobMetrics = (jobDoc) => {
   job.workflowVersion = wfVersion;
   const autoPercent = calcJobCompletionPercent(job.workflowEvents, wfVersion);
   job.autoCompletionPercent = autoPercent;
-  job.completionPercent = autoPercent;
+  job.completionPercent =
+    job.manualProgressPercent != null ? job.manualProgressPercent : autoPercent;
   return job;
 };
 

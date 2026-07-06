@@ -272,9 +272,29 @@ function isStageWorkComplete(job, stageKey) {
   );
 }
 
+const STAGES_REQUIRING_SE_APPROVAL = [
+  "siteMeasurement",
+  "planning",
+  "scheduling",
+  "drafting",
+  "materialPurchasing",
+  "fabrication",
+  "fabricationQc",
+  "powderCoating",
+  "powderCoatingQc",
+  "finishing",
+  "installation",
+  "jobCompletion",
+];
+
 function isStageComplete(job, stageKey) {
-  // Pipeline gates: work finished is enough — SE sign-off is enforced at job closure only.
-  return isStageWorkComplete(job, stageKey);
+  if (!isStageWorkComplete(job, stageKey)) return false;
+  if (stageKey === "siteEngineerApproval") return true;
+  if (STAGES_REQUIRING_SE_APPROVAL.includes(stageKey)) {
+    const wf = job?.workflowEvents?.[stageKey];
+    return wf?.siteEngineerStatus === "Approved";
+  }
+  return true;
 }
 
 function isStageAwaitingSiteEngineer(job, stageKey) {

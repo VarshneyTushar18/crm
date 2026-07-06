@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const Qc = require("../models/appModels/Qc");
 const Job = require("../models/appModels/Job");
 const { markModuleCompleteForReview } = require("../utils/moduleSiteEngineerGate");
-const { isStageWorkComplete } = require("../utils/workflowDefaults");
+const { isStageComplete } = require("../utils/workflowDefaults");
 const { notifyCustomer } = require("../services/notificationService");
 
 if (!Qc) throw new Error("Qc model not loaded");
@@ -21,8 +21,47 @@ const resolveStageKey = (item) => {
   return QC_STAGE_MAP[item.inspectionType] || "finishing";
 };
 
-const ensureFabricationSignedOff = (job) => {
-  return isStageWorkComplete(job, "fabrication");
+const validateQcStagePrerequisites = (job, stageKey) => {
+  const key = stageKey || "finishing";
+
+  if (key === "fabricationQc" || key === "finishing") {
+    if (!isStageComplete(job, "fabrication")) {
+      return {
+        ok: false,
+        message:
+          "QC cannot start before fabrication is complete and site engineer approved.",
+      };
+    }
+    return { ok: true };
+  }
+
+  if (key === "powderCoatingQc") {
+    if (!isStageComplete(job, "powderCoating")) {
+      return {
+        ok: false,
+        message:
+          "Powder coating QC requires powder coating complete and site engineer approved.",
+      };
+    }
+    if (!isStageComplete(job, "fabricationQc")) {
+      return {
+        ok: false,
+        message:
+          "Powder coating QC requires fabrication QC passed and site engineer approved.",
+      };
+    }
+    return { ok: true };
+  }
+
+  if (!isStageComplete(job, "fabrication")) {
+    return {
+      ok: false,
+      message:
+        "QC cannot start before fabrication is complete and site engineer approved.",
+    };
+  }
+
+  return { ok: true };
 };
 
 const maybeCompleteQcStage = async (jobId, stageKey) => {
@@ -145,19 +184,19 @@ exports.create = async (req, res) => {
       });
     }
 
-    if (!ensureFabricationSignedOff(job)) {
-      return res.status(409).json({
-        success: false,
-        result: null,
-        message:
-          "QC cannot start before fabrication sign-off. Complete fabrication first.",
-      });
-    }
-
     const workflowStageKey =
       payload.workflowStageKey ||
       QC_STAGE_MAP[payload.inspectionType] ||
-      "";
+      "finishing";
+
+    const gate = validateQcStagePrerequisites(job, workflowStageKey);
+    if (!gate.ok) {
+      return res.status(409).json({
+        success: false,
+        result: null,
+        message: gate.message,
+      });
+    }
 
     const created = await Qc.create({
       jobId: payload.jobId,

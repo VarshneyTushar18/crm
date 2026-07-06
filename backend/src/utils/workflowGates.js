@@ -29,7 +29,7 @@ const validateStageCompletion = (job, stageKey) => {
   return { ok: true };
 };
 
-/** SE sign-off is mandatory only when closing the job (end of timeline). */
+/** SE sign-off is required per stage before the next workflow stage can proceed. */
 const validateSiteEngineerSignoffBeforeJobClose = (job) => {
   const wf = job?.workflowEvents || {};
   const missing = [];

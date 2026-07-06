@@ -138,3 +138,45 @@ exports.markAllRead = async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+
+/** Admin view: customer notification read receipts (ETA, workflow, progress updates). */
+exports.adminCustomerReceipts = async (req, res) => {
+  try {
+    const role = String(req.user?.role || req.admin?.role || "").toLowerCase();
+    if (!["admin", "siteengineer"].includes(role)) {
+      return res.status(403).json({ success: false, message: "Admin access required" });
+    }
+
+    const { jobId, read } = req.query;
+    const filter = {
+      customerId: { $ne: null },
+      ...retentionFilter(),
+    };
+
+    if (jobId) filter.jobId = jobId;
+    if (read === "true") filter.read = true;
+    if (read === "false") filter.read = false;
+
+    const items = await Notification.find(filter)
+      .populate("customerId", "name email company")
+      .populate("jobId", "jobId customer")
+      .sort({ createdAt: -1 })
+      .limit(200);
+
+    const unreadCount = await Notification.countDocuments({
+      ...filter,
+      read: false,
+    });
+
+    return res.json({
+      success: true,
+      result: {
+        items,
+        unreadCount,
+        total: items.length,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};

@@ -27,7 +27,8 @@ const sanitizeJobForPortal = (job) => {
   });
 
   const autoPercent = calcJobCompletionPercent(workflowEvents, version);
-  const completionPercent = autoPercent;
+  const completionPercent =
+    obj.manualProgressPercent != null ? obj.manualProgressPercent : autoPercent;
 
   return {
     _id: obj._id,

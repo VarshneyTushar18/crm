@@ -45,6 +45,7 @@ const scheduleAssignmentSchema = new mongoose.Schema(
       },
     ],
     title: { type: String, trim: true, required: true },
+    priority: { type: Number, default: 3, min: 1, max: 5 },
     startTime: { type: Date, required: true },
     endTime: { type: Date, required: true },
     totalHours: { type: Number, default: 0 },
