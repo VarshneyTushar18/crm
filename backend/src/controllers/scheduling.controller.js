@@ -394,3 +394,46 @@ exports.summary = async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+
+/** Mark scheduling work complete and queue site engineer module review. */
+exports.completeForJob = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const job = await Job.findById(jobId);
+    if (!job) {
+      return res.status(404).json({ success: false, message: "Job not found" });
+    }
+
+    const assignments = await ScheduleAssignment.find({
+      jobId,
+      status: { $ne: "Cancelled" },
+    });
+
+    if (!assignments.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Add at least one schedule assignment before sending to site engineer",
+      });
+    }
+
+    const actor = getActor(req);
+
+    await ScheduleAssignment.updateMany(
+      {
+        jobId,
+        status: { $in: ["Scheduled", "In Progress", "Delayed"] },
+      },
+      { status: "Completed", updatedBy: actor }
+    );
+
+    const refreshed = await syncJobSchedulingStage(jobId, actor);
+
+    return res.json({
+      success: true,
+      result: refreshed,
+      message: "Scheduling sent to site engineer for approval",
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};

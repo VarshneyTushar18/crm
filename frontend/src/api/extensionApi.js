@@ -31,6 +31,11 @@ export const updateScheduleAssignment = async (id, payload) => {
   return res.data;
 };
 
+export const completeSchedulingForJob = async (jobId) => {
+  const res = await axios.post(`${API}/complete/${jobId}`, {}, { headers: authHeaders() });
+  return res.data;
+};
+
 export const deleteScheduleAssignment = async (id) => {
   const res = await axios.delete(`${API}/delete/${id}`, { headers: authHeaders() });
   return res.data;

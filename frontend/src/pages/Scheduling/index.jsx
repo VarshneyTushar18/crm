@@ -18,6 +18,7 @@ import {
   Tag,
   Upload,
   message,
+  Alert,
 } from "antd";
 import { EyeOutlined, UploadOutlined } from "@ant-design/icons";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -33,6 +34,7 @@ import {
   getScheduleCalendar,
   updateScheduleAssignment,
   uploadScheduleAttachments,
+  completeSchedulingForJob,
 } from "../../api/extensionApi";
 
 const { Option } = Select;
@@ -80,6 +82,7 @@ export default function Scheduling() {
   const [attachments, setAttachments] = useState([]);
   const [pendingFiles, setPendingFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [completing, setCompleting] = useState(false);
   const [form] = Form.useForm();
   const [view, setView] = useState("list");
   const [range, setRange] = useState([dayjs().startOf("week"), dayjs().endOf("week")]);
@@ -300,6 +303,34 @@ export default function Scheduling() {
     }
   };
 
+  const schedulingSeStatus = jobData?.workflowEvents?.scheduling?.siteEngineerStatus;
+  const schedulingSeApproved = schedulingSeStatus === "Approved";
+  const schedulingSePending = schedulingSeStatus === "Pending";
+
+  const completeScheduling = async () => {
+    if (!jobId) {
+      message.warning("Select a job first");
+      return;
+    }
+    if (!items.length) {
+      message.warning("Add at least one schedule assignment first");
+      return;
+    }
+    try {
+      setCompleting(true);
+      await completeSchedulingForJob(jobId);
+      message.success("Scheduling sent to site engineer for approval");
+      await fetchItems(jobId);
+      const jobList = await getJobs();
+      const current = (Array.isArray(jobList) ? jobList : []).find((j) => j._id === jobId);
+      if (current) setJobData(current);
+    } catch (err) {
+      message.error(err?.response?.data?.message || "Failed to complete scheduling");
+    } finally {
+      setCompleting(false);
+    }
+  };
+
   const columns = [
     { title: "Title", dataIndex: "title" },
     {
@@ -412,11 +443,48 @@ export default function Scheduling() {
         </div>
         <Space wrap>
           <Button onClick={() => navigate("/admin/jobs")}>Back to Jobs</Button>
-          <Button type="primary" onClick={openCreate}>
+          <Button type="primary" onClick={openCreate} disabled={!jobId}>
             + Schedule Assignment
+          </Button>
+          <Button
+            type="primary"
+            onClick={completeScheduling}
+            loading={completing}
+            disabled={!jobId || !items.length || schedulingSeApproved}
+          >
+            Mark Scheduling Complete
           </Button>
         </Space>
       </div>
+
+      {jobId && schedulingSePending ? (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Site engineer review pending"
+          description="Scheduling was submitted. Waiting for site engineer approval in SE Approvals."
+        />
+      ) : null}
+
+      {jobId && schedulingSeApproved ? (
+        <Alert
+          type="success"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Scheduling approved by site engineer"
+        />
+      ) : null}
+
+      {jobId && items.length > 0 && !schedulingSePending && !schedulingSeApproved ? (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Send to site engineer when schedule is ready"
+          description='Click "Mark Scheduling Complete" to send this job to Site Engineer → Approvals (same as Planning).'
+        />
+      ) : null}
 
       <Card style={{ marginBottom: 16 }}>
         <Row gutter={16}>

@@ -7,6 +7,7 @@ router.get("/list/:jobId", controller.listByJob);
 router.get("/calendar", controller.calendar);
 router.get("/summary/:jobId", controller.summary);
 router.post("/create", controller.create);
+router.post("/complete/:jobId", controller.completeForJob);
 router.patch("/update/:id", controller.update);
 router.post("/upload/:id", upload.array("files", 10), controller.uploadFiles);
 router.delete("/delete/:id", controller.remove);
