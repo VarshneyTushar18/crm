@@ -57,7 +57,10 @@ router.use(
   asRouter(require("./powderCoating.routes"), "powderCoating.routes")
 );
 router.use("/qc", asRouter(require("./qc.routes"), "qc.routes"));
+router.use("/ncr", asRouter(require("./ncr.routes"), "ncr.routes"));
 router.use("/installation", asRouter(require("./installation.routes"), "installation.routes"));
+router.use("/job-card", asRouter(require("./jobCard.routes"), "jobCard.routes"));
+router.use("/productivity", asRouter(require("./productivity.routes"), "productivity.routes"));
 router.use("/procurement", asRouter(require("./procurement.routes"), "procurement.routes"));
 router.use("/rfq", asRouter(require("./rfq.routes"), "rfq.routes"));
 router.use("/employee", asRouter(require("./employee.routes"), "employee.routes"));

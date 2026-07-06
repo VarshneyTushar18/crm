@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const Qc = require("../models/appModels/Qc");
 const Job = require("../models/appModels/Job");
 const { markModuleCompleteForReview } = require("../utils/moduleSiteEngineerGate");
+const { isStageWorkComplete } = require("../utils/workflowDefaults");
 const { notifyCustomer } = require("../services/notificationService");
 
 if (!Qc) throw new Error("Qc model not loaded");
@@ -18,6 +19,10 @@ const QC_STAGE_MAP = {
 const resolveStageKey = (item) => {
   if (item.workflowStageKey) return item.workflowStageKey;
   return QC_STAGE_MAP[item.inspectionType] || "finishing";
+};
+
+const ensureFabricationSignedOff = (job) => {
+  return isStageWorkComplete(job, "fabrication");
 };
 
 const maybeCompleteQcStage = async (jobId, stageKey) => {
@@ -137,6 +142,15 @@ exports.create = async (req, res) => {
         success: false,
         result: null,
         message: "Job not found",
+      });
+    }
+
+    if (!ensureFabricationSignedOff(job)) {
+      return res.status(409).json({
+        success: false,
+        result: null,
+        message:
+          "QC cannot start before fabrication sign-off. Complete fabrication first.",
       });
     }
 

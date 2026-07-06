@@ -5,6 +5,7 @@ const controller = require("../../controllers/installation.controller");
 const uploadInstallationFiles = require("../../middlewares/uploadInstallationFiles");
 
 router.get("/list/:jobId", controller.listByJob);
+router.patch("/reorder/:jobId", controller.reorderSequence);
 router.post("/create", controller.create);
 router.patch("/update/:id", controller.update);
 router.post(

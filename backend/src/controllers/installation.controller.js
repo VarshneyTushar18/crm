@@ -4,6 +4,17 @@ const InstallationSummary = require("../models/appModels/InstallationSummary");
 const Job = require("../models/appModels/Job");
 const { markModuleCompleteForReview } = require("../utils/moduleSiteEngineerGate");
 const { validateSiteEngineerSignoffBeforeJobClose } = require("../utils/workflowGates");
+const {
+    sortInstallationItems,
+    validateInstallationStatusChange,
+    getNextSequenceOrder,
+} = require("../utils/installationSequence");
+
+const sumHoursLog = (hoursLog = []) =>
+    (Array.isArray(hoursLog) ? hoursLog : []).reduce(
+        (sum, entry) => sum + Number(entry?.hours || 0),
+        0
+    );
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
@@ -26,6 +37,33 @@ const mapFile = (file) => ({
     size: file.size || 0,
 });
 
+const backfillSequenceOrder = async (jobId) => {
+    const items = await Installation.find({ jobId });
+    const missing = items.filter((item) => !Number(item.sequenceOrder));
+    if (!missing.length) return false;
+
+    const maxOrder = Math.max(0, ...items.map((item) => Number(item.sequenceOrder || 0)));
+    let nextOrder = maxOrder;
+
+    const sortedMissing = missing.sort(
+        (a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+    );
+
+    for (const item of sortedMissing) {
+        nextOrder += 1;
+        item.sequenceOrder = nextOrder;
+        await item.save();
+    }
+
+    return true;
+};
+
+const listItemsForJob = async (jobId) => {
+    await backfillSequenceOrder(jobId);
+    const items = await Installation.find({ jobId });
+    return sortInstallationItems(items);
+};
+
 exports.listByJob = async (req, res) => {
     try {
         const { jobId } = req.params;
@@ -37,10 +75,7 @@ exports.listByJob = async (req, res) => {
             });
         }
 
-        const items = await Installation.find({ jobId }).sort({
-            plannedDate: 1,
-            createdAt: -1,
-        });
+        const items = await listItemsForJob(jobId);
 
         return res.status(200).json({
             success: true,
@@ -70,6 +105,7 @@ exports.create = async (req, res) => {
             remarks,
             expectedHours,
             actualHours,
+            hoursLog,
         } = req.body;
 
         if (!isValidObjectId(jobId)) {
@@ -94,8 +130,17 @@ exports.create = async (req, res) => {
             });
         }
 
+        const existingItems = await Installation.find({ jobId });
+        const sequenceOrder =
+            req.body.sequenceOrder !== undefined
+                ? Math.max(1, Number(req.body.sequenceOrder))
+                : getNextSequenceOrder(existingItems);
+
+        const parsedHoursLog = Array.isArray(hoursLog) ? hoursLog : [];
+
         const item = await Installation.create({
             jobId,
+            sequenceOrder,
             activityName: activityName.trim(),
             locationArea: locationArea || "",
             assignedTeam: Array.isArray(assignedTeam) ? assignedTeam : [],
@@ -105,7 +150,10 @@ exports.create = async (req, res) => {
             snagIssue: snagIssue || "",
             remarks: remarks || "",
             expectedHours: toNumber(expectedHours),
-            actualHours: toNumber(actualHours),
+            hoursLog: parsedHoursLog,
+            actualHours: parsedHoursLog.length
+                ? sumHoursLog(parsedHoursLog)
+                : toNumber(actualHours),
         });
 
         return res.status(201).json({
@@ -175,9 +223,28 @@ exports.update = async (req, res) => {
             ...(req.body.actualHours !== undefined && {
                 actualHours: toNumber(req.body.actualHours),
             }),
+            ...(req.body.hoursLog !== undefined && {
+                hoursLog: Array.isArray(req.body.hoursLog) ? req.body.hoursLog : [],
+            }),
         };
 
+        if (payload.hoursLog !== undefined) {
+            payload.actualHours = sumHoursLog(payload.hoursLog);
+        }
+
         const nextStatus = payload.status !== undefined ? payload.status : existing.status;
+
+        if (nextStatus !== existing.status) {
+            const allItems = await Installation.find({ jobId: existing.jobId });
+            const gate = validateInstallationStatusChange(allItems, existing, nextStatus);
+            if (!gate.ok) {
+                return res.status(409).json({
+                    success: false,
+                    message: gate.message,
+                });
+            }
+        }
+
         const photoUrls =
             req.body.photoUrls !== undefined
                 ? Array.isArray(req.body.photoUrls)
@@ -545,6 +612,75 @@ exports.finalize = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Failed to finalize job completion",
+            error: error.message,
+        });
+    }
+};
+
+exports.reorderSequence = async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        const { orderedIds } = req.body || {};
+
+        if (!isValidObjectId(jobId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid jobId",
+            });
+        }
+
+        if (!Array.isArray(orderedIds) || !orderedIds.length) {
+            return res.status(400).json({
+                success: false,
+                message: "orderedIds array is required",
+            });
+        }
+
+        const items = await Installation.find({ jobId });
+        if (!items.length) {
+            return res.status(400).json({
+                success: false,
+                message: "No installation activities found",
+            });
+        }
+
+        const itemMap = new Map(items.map((item) => [String(item._id), item]));
+        const uniqueIds = [...new Set(orderedIds.map((id) => String(id)))];
+
+        if (uniqueIds.length !== items.length) {
+            return res.status(400).json({
+                success: false,
+                message: "orderedIds must include every installation activity once",
+            });
+        }
+
+        for (const id of uniqueIds) {
+            if (!itemMap.has(id)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "orderedIds contains an invalid installation activity",
+                });
+            }
+        }
+
+        await Promise.all(
+            uniqueIds.map((id, index) =>
+                Installation.findByIdAndUpdate(id, { sequenceOrder: index + 1 })
+            )
+        );
+
+        const refreshed = await listItemsForJob(jobId);
+
+        return res.status(200).json({
+            success: true,
+            result: refreshed,
+            message: "Installation sequence updated",
+        });
+    } catch (error) {
+        console.error("Installation reorderSequence error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to reorder installation sequence",
             error: error.message,
         });
     }

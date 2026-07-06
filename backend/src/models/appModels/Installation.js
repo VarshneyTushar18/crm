@@ -1,11 +1,28 @@
 const mongoose = require("mongoose");
 
+const installationHoursSchema = new mongoose.Schema(
+    {
+        workerName: { type: String, trim: true, default: "" },
+        role: { type: String, trim: true, default: "Installer" },
+        hours: { type: Number, default: 0 },
+        workDate: { type: String, trim: true, default: "" },
+        notes: { type: String, trim: true, default: "" },
+    },
+    { _id: false }
+);
+
 const installationSchema = new mongoose.Schema(
     {
         jobId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Job",
             required: true,
+            index: true,
+        },
+        sequenceOrder: {
+            type: Number,
+            default: 0,
+            min: 0,
             index: true,
         },
         activityName: {
@@ -54,6 +71,10 @@ const installationSchema = new mongoose.Schema(
         actualHours: {
             type: Number,
             default: 0,
+        },
+        hoursLog: {
+            type: [installationHoursSchema],
+            default: [],
         },
         photoUrls: {
             type: [String],
