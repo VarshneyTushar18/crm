@@ -15,6 +15,7 @@ const workUpdateRoutes = require("./routes/mobile/workUpdateRoutes");
 const errorHandlers = require("./handlers/errorHandlers");
 const handleUploadErrors = require("./middlewares/handleUploadErrors");
 const erpApiRouter = require("./routes/appRoutes/appApi");
+const { isOriginAllowed } = require("./utils/corsOrigins");
 
 // Custom auth routes
 const authRouter = require("./routes/appRoutes/auth.routes");
@@ -29,7 +30,12 @@ const app = express();
 // ============================
 app.use(
   cors({
-    origin: true,
+    origin(origin, callback) {
+      if (!origin || isOriginAllowed(origin)) {
+        return callback(null, origin || true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   })
 );

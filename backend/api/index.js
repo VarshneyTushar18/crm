@@ -8,9 +8,19 @@ moduleAlias.addAliases({
 
 const mongoose = require("mongoose");
 const { globSync } = require("glob");
+const { applyCorsHeaders } = require("../src/utils/corsOrigins");
 
 let appInstance = null;
 let initPromise = null;
+
+/** Vercel catch-all routes may strip the /api prefix before Express sees the URL. */
+const normalizeVercelUrl = (req) => {
+  const url = req.url || "/";
+  if (url.startsWith("/api")) return;
+
+  const pathname = url.startsWith("/") ? url : `/${url}`;
+  req.url = `/api${pathname}`;
+};
 
 async function initialize() {
   if (appInstance) return appInstance;
@@ -47,10 +57,18 @@ async function initialize() {
 }
 
 module.exports = async function handler(req, res) {
+  applyCorsHeaders(req, res);
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
   try {
+    normalizeVercelUrl(req);
     const app = await initialize();
     return app(req, res);
   } catch (error) {
+    applyCorsHeaders(req, res);
     return res.status(500).json({
       success: false,
       message: "Server failed to initialize on Vercel.",
