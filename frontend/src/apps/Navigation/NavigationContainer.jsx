@@ -35,6 +35,7 @@ import {
   MailOutlined,
   CalendarOutlined,
   AuditOutlined,
+  MessageOutlined,
 } from "@ant-design/icons";
 
 const { Sider } = Layout;
@@ -48,6 +49,11 @@ const getStoredUserRole = () => {
 };
 
 const getSiteEngineerItems = (go) => [
+  {
+    key: "team-chat",
+    icon: <MessageOutlined />,
+    label: <Link to={go("/team-chat")}>Team Chat</Link>,
+  },
   {
     key: "jobs",
     icon: <FileOutlined />,
@@ -72,6 +78,11 @@ const getSiteEngineerItems = (go) => [
     key: "installation",
     icon: <ShopOutlined />,
     label: <Link to={go("/installation")}>Installation</Link>,
+  },
+  {
+    key: "worker-tasks",
+    icon: <TagsOutlined />,
+    label: <Link to={go("/worker-tasks")}>Task Management</Link>,
   },
   {
     key: "site-engineer",
@@ -185,6 +196,11 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
             icon: <FileOutlined />,
             label: <Link to={go("/jobs")}>Jobs</Link>,
           },
+          {
+            key: "team-chat",
+            icon: <MessageOutlined />,
+            label: <Link to={go("/team-chat")}>Team Chat</Link>,
+          },
         ],
       },
       {
@@ -216,6 +232,11 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
             key: "site-engineer",
             icon: <AuditOutlined />,
             label: <Link to={goWithJob("/site-engineer")}>SE Approvals</Link>,
+          },
+          {
+            key: "worker-tasks",
+            icon: <TagsOutlined />,
+            label: <Link to={go("/worker-tasks")}>Task Management</Link>,
           },
         ],
       },
@@ -366,11 +387,13 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
     lead: "sales-group",
     quotes: "sales-group",
     jobs: "sales-group",
+    "team-chat": "sales-group",
     "site-measurement": "planning-group",
     planning: "planning-group",
     scheduling: "planning-group",
     drafting: "planning-group",
     "site-engineer": "planning-group",
+    "worker-tasks": "planning-group",
     "job-scheduling": "production-group",
     "material-purchase": "production-group",
     fabrication: "production-group",

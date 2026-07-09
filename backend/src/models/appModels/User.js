@@ -49,6 +49,11 @@ const UserSchema = new mongoose.Schema(
       sparse: true,
       trim: true,
     },
+    phone: {
+      type: String,
+      default: "",
+      trim: true,
+    },
 
     customer: {
       type: mongoose.Schema.Types.ObjectId,
@@ -74,6 +79,32 @@ const UserSchema = new mongoose.Schema(
     phoneOTPExpires: Date,
     emailOTP: String,
     emailOTPExpires: Date,
+    loginOtpHash: {
+      type: String,
+      default: null,
+    },
+    loginOtpExpires: {
+      type: Date,
+      default: null,
+    },
+    loginOtpResendAt: {
+      type: Date,
+      default: null,
+    },
+    boundDeviceId: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    boundDeviceLabel: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    lastLoginAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

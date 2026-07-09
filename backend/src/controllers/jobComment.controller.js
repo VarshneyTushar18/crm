@@ -96,6 +96,73 @@ exports.listByJob = async (req, res) => {
   }
 };
 
+/** Inbox of all job team-chat threads (admin / site engineer). */
+exports.inbox = async (req, res) => {
+  try {
+    const actor = getActor(req);
+    const role = String(actor.role || "").toLowerCase();
+    if (!["admin", "siteengineer"].includes(role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Admin / Site Engineer only",
+      });
+    }
+
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit || 100)));
+
+    const threads = await JobComment.aggregate([
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: "$jobId",
+          messageCount: { $sum: 1 },
+          lastMessage: { $first: "$message" },
+          lastAuthorName: { $first: "$authorName" },
+          lastAuthorRole: { $first: "$authorRole" },
+          lastAt: { $first: "$createdAt" },
+          lastAttachments: { $first: "$attachments" },
+        },
+      },
+      { $sort: { lastAt: -1 } },
+      { $limit: limit },
+    ]);
+
+    const jobIds = threads.map((t) => t._id).filter(Boolean);
+    const jobs = await Job.find({ _id: { $in: jobIds }, removed: { $ne: true } })
+      .select("jobId customer site systemState status")
+      .lean();
+    const jobMap = new Map(jobs.map((j) => [String(j._id), j]));
+
+    const result = threads
+      .map((t) => {
+        const job = jobMap.get(String(t._id));
+        if (!job) return null;
+        return {
+          jobId: t._id,
+          jobCode: job.jobId,
+          customer: job.customer || "",
+          site: job.site || "",
+          systemState: job.systemState || "",
+          messageCount: t.messageCount,
+          lastMessage: t.lastMessage || "",
+          lastAuthorName: t.lastAuthorName || "",
+          lastAuthorRole: t.lastAuthorRole || "",
+          lastAt: t.lastAt,
+          hasAttachment: Array.isArray(t.lastAttachments) && t.lastAttachments.length > 0,
+        };
+      })
+      .filter(Boolean);
+
+    return res.json({
+      success: true,
+      result,
+      message: `${result.length} chat thread(s)`,
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 exports.create = async (req, res) => {
   try {
     const { message, attachments } = req.body || {};

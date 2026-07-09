@@ -19,6 +19,18 @@ import "./login.css";
 const { Title, Text } = Typography;
 
 const API = `${API_BASE_URL}/auth/login`;
+const DEVICE_KEY = "crmDeviceId";
+
+const ensureDeviceId = () => {
+  const existing = localStorage.getItem(DEVICE_KEY);
+  if (existing) return existing;
+  const nativeCrypto = typeof window !== "undefined" ? window.crypto : null;
+  const generated =
+    (nativeCrypto?.randomUUID && nativeCrypto.randomUUID()) ||
+    `device-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  localStorage.setItem(DEVICE_KEY, generated);
+  return generated;
+};
 
 const ROLE_OPTIONS = [
   {
@@ -73,6 +85,8 @@ export default function Login() {
         role: values.role,
         identifier: values.identifier?.trim(),
         password: values.password,
+        deviceId: ensureDeviceId(),
+        deviceLabel: navigator.userAgent,
       };
 
       const res = await axios.post(API, payload);

@@ -3,7 +3,11 @@ const fs = require("fs");
 const path = require("path");
 const mongoose = require("mongoose");
 const { slugify } = require("transliteration");
-const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+const {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} = require("@aws-sdk/client-s3");
 const { GridFSBucket, ObjectId } = require("mongodb");
 
 const GRIDFS_BUCKET = "crmUploads";
@@ -128,9 +132,105 @@ const persistFile = async (file, folder = "misc") => {
   };
 };
 
+/** Persist a data-URL selfie (camera capture) to local disk / GridFS / object storage. */
+const persistDataUrl = async (dataUrl, folder = "attendance", filenameHint = "selfie.jpg") => {
+  const raw = String(dataUrl || "");
+  const match = raw.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) {
+    throw new Error("Invalid selfie image data");
+  }
+  const mime = match[1];
+  const buffer = Buffer.from(match[2], "base64");
+  if (!buffer.length) {
+    throw new Error("Empty selfie image");
+  }
+  if (buffer.length > 8 * 1024 * 1024) {
+    throw new Error("Selfie image too large (max 8 MB)");
+  }
+  const ext =
+    mime.includes("png") ? ".png" : mime.includes("webp") ? ".webp" : ".jpg";
+  const safeName = String(filenameHint || "selfie").replace(/\.[a-z]+$/i, "") + ext;
+
+  return persistFile(
+    {
+      buffer,
+      originalname: safeName,
+      mimetype: mime,
+    },
+    folder
+  );
+};
+
 const persistFiles = async (files, folder) => {
   const list = Array.isArray(files) ? files : [];
   return Promise.all(list.map((file) => persistFile(file, folder)));
+};
+
+/** Best-effort delete for a previously persisted URL (local disk / GridFS / Spaces). */
+const deletePersistedUrl = async (fileUrl) => {
+  const url = String(fileUrl || "").trim();
+  if (!url) return { deleted: false, reason: "empty" };
+
+  // GridFS signed URL: /api/files/:id?sig=...
+  const gridMatch = url.match(/\/api\/files\/([a-fA-F0-9]{24})(?:\?|$)/);
+  if (gridMatch) {
+    if (mongoose.connection.readyState !== 1) {
+      return { deleted: false, reason: "db_not_ready" };
+    }
+    const bucket = new GridFSBucket(mongoose.connection.db, { bucketName: GRIDFS_BUCKET });
+    const _id = new ObjectId(gridMatch[1]);
+    try {
+      await bucket.delete(_id);
+      return { deleted: true, storage: "gridfs" };
+    } catch (err) {
+      if (String(err?.message || "").includes("FileNotFound")) {
+        return { deleted: false, reason: "not_found" };
+      }
+      throw err;
+    }
+  }
+
+  // Local disk: /uploads/folder/filename
+  const localMatch = url.match(/^\/uploads\/([^/?#]+)\/([^/?#]+)$/);
+  if (localMatch) {
+    const filePath = path.join(__dirname, "../../uploads", localMatch[1], localMatch[2]);
+    try {
+      await fs.promises.unlink(filePath);
+      return { deleted: true, storage: "local" };
+    } catch (err) {
+      if (err?.code === "ENOENT") return { deleted: false, reason: "not_found" };
+      throw err;
+    }
+  }
+
+  // DigitalOcean Spaces / S3 public URL
+  if (isObjectStorageConfigured()) {
+    try {
+      const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
+      const key = parsed.pathname.replace(/^\//, "");
+      if (key.startsWith("public/uploads/")) {
+        const client = new S3Client({
+          endpoint: `https://${process.env.DO_SPACES_URL}`,
+          region: process.env.REGION || "us-east-1",
+          credentials: {
+            accessKeyId: process.env.DO_SPACES_KEY,
+            secretAccessKey: process.env.DO_SPACES_SECRET,
+          },
+        });
+        await client.send(
+          new DeleteObjectCommand({
+            Bucket: process.env.DO_SPACES_NAME,
+            Key: key,
+          })
+        );
+        return { deleted: true, storage: "spaces" };
+      }
+    } catch {
+      return { deleted: false, reason: "spaces_error" };
+    }
+  }
+
+  return { deleted: false, reason: "unsupported_url" };
 };
 
 const openGridFsDownload = async (fileId, res) => {
@@ -165,6 +265,8 @@ const openGridFsDownload = async (fileId, res) => {
 module.exports = {
   persistFile,
   persistFiles,
+  persistDataUrl,
+  deletePersistedUrl,
   isServerless,
   isObjectStorageConfigured,
   verifyFileSig,

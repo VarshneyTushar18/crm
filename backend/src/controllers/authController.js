@@ -4,6 +4,9 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 
 const User = mongoose.models.User;
+const AuthDevice = mongoose.models.AuthDevice;
+const AuthOtpLog = mongoose.models.AuthOtpLog;
+const AuthSession = mongoose.models.AuthSession;
 
 if (!User) {
   throw new Error("User model not loaded.");
@@ -11,6 +14,39 @@ if (!User) {
 
 // ================= HELPERS =================
 const normalizeEmail = (email = "") => String(email || "").trim().toLowerCase();
+const normalizeIdentifier = (value = "") => String(value || "").trim();
+const toTokenHash = (token = "") =>
+  crypto.createHash("sha256").update(String(token)).digest("hex");
+const loginExpiryByRole = (role) => (role === "worker" ? "16h" : "7d");
+const expiryToMs = (expiry = "7d") => {
+  if (typeof expiry !== "string") return 7 * 24 * 60 * 60 * 1000;
+  const m = expiry.match(/^(\d+)([smhd])$/i);
+  if (!m) return 7 * 24 * 60 * 60 * 1000;
+  const n = Number(m[1]);
+  const unit = m[2].toLowerCase();
+  if (unit === "s") return n * 1000;
+  if (unit === "m") return n * 60 * 1000;
+  if (unit === "h") return n * 60 * 60 * 1000;
+  return n * 24 * 60 * 60 * 1000;
+};
+const makeOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
+const hashValue = (value = "") =>
+  crypto.createHash("sha256").update(String(value)).digest("hex");
+const getClientIp = (req) =>
+  req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+  req.socket?.remoteAddress ||
+  "";
+const getUserAgent = (req) => String(req.headers["user-agent"] || "");
+const canUseRole = (role) => ["admin", "worker", "customer", "siteEngineer"].includes(role);
+
+const createOtpLog = async (payload = {}) => {
+  if (!AuthOtpLog) return;
+  try {
+    await AuthOtpLog.create(payload);
+  } catch {
+    // avoid blocking auth on audit logging failures
+  }
+};
 
 const isUserInactive = (user) => {
   if (!user) return true;
@@ -25,7 +61,8 @@ const isUserInactive = (user) => {
   return false;
 };
 
-const signToken = (user) => {
+const signToken = (user, expiresIn) => {
+  const ttl = expiresIn || loginExpiryByRole(user?.role);
   return jwt.sign(
     {
       id: user._id,
@@ -35,8 +72,131 @@ const signToken = (user) => {
       customer: user.customer || null,
     },
     process.env.JWT_SECRET,
-    { expiresIn: "7d" }
+    { expiresIn: ttl }
   );
+};
+
+const makeAuthResponse = (user, token, expiresIn) => ({
+  success: true,
+  result: {
+    token,
+    expiresIn,
+    role: user.role,
+    user: {
+      _id: user._id,
+      name: user.name,
+      email: user.email || null,
+      role: user.role,
+      workerId: user.workerId || null,
+      companyName: user.companyName || null,
+      mobile: user.mobile || null,
+      customer: user.customer || null,
+      boundDeviceId: user.boundDeviceId || "",
+    },
+  },
+  message: "Login successful",
+});
+
+const findLoginUser = async ({ role, identifier }) => {
+  const normalizedIdentifier = normalizeIdentifier(identifier);
+  if (!canUseRole(role) || !normalizedIdentifier) return null;
+
+  let query = {};
+  if (role === "worker") {
+    query = {
+      role: "worker",
+      $or: [
+        { workerId: normalizedIdentifier },
+        { email: normalizeEmail(normalizedIdentifier) },
+        { mobile: normalizedIdentifier },
+        { phone: normalizedIdentifier },
+      ],
+    };
+  } else {
+    query = {
+      role,
+      $or: [
+        { email: normalizeEmail(normalizedIdentifier) },
+        { mobile: normalizedIdentifier },
+        { phone: normalizedIdentifier },
+      ],
+    };
+  }
+
+  let userQuery = User.findOne(query);
+  if (role === "customer" && User.schema?.paths?.customer) {
+    userQuery = userQuery.populate("customer");
+  }
+  return userQuery;
+};
+
+const upsertDevice = async (user, { deviceId, deviceLabel = "", req }) => {
+  if (!AuthDevice || !deviceId) return;
+  await AuthDevice.findOneAndUpdate(
+    { userId: user._id, deviceId: String(deviceId).trim() },
+    {
+      $set: {
+        label: String(deviceLabel || "").trim(),
+        platform: getUserAgent(req),
+        lastSeenAt: new Date(),
+      },
+      $setOnInsert: { isPrimary: !user.boundDeviceId },
+    },
+    { new: true, upsert: true }
+  );
+};
+
+const assertWorkerDevice = async (user, { deviceId, deviceLabel, req, allowRebind = false }) => {
+  if (user.role !== "worker") return { ok: true };
+  const normalizedDeviceId = String(deviceId || "").trim();
+  if (!normalizedDeviceId) {
+    return {
+      ok: false,
+      status: 400,
+      message: "deviceId is required for worker login",
+    };
+  }
+  if (!user.boundDeviceId) {
+    user.boundDeviceId = normalizedDeviceId;
+    user.boundDeviceLabel = String(deviceLabel || "").trim();
+    await user.save();
+  } else if (user.boundDeviceId !== normalizedDeviceId) {
+    // Password / verified OTP login can re-bind browser device for local/web testing.
+    // Strict one-device lock remains for future mobile-only mode when allowRebind=false.
+    if (!allowRebind) {
+      return {
+        ok: false,
+        status: 403,
+        message:
+          "This account is bound to another device. Contact Admin/HR to re-register device.",
+      };
+    }
+    user.boundDeviceId = normalizedDeviceId;
+    user.boundDeviceLabel = String(deviceLabel || "").trim();
+    await user.save();
+  }
+  await upsertDevice(user, { deviceId: normalizedDeviceId, deviceLabel, req });
+  return { ok: true };
+};
+
+const createSession = async (user, token, { req, deviceId = "", deviceLabel = "", expiresIn }) => {
+  if (!AuthSession) return;
+  const ttl = expiryToMs(expiresIn || loginExpiryByRole(user.role));
+  const now = new Date();
+  await AuthSession.updateMany(
+    { userId: user._id, isRevoked: false },
+    { isRevoked: true, revokedAt: now, revokedReason: "new_login" }
+  );
+  await AuthSession.create({
+    userId: user._id,
+    tokenHash: toTokenHash(token),
+    role: user.role,
+    deviceId: String(deviceId || "").trim(),
+    deviceLabel: String(deviceLabel || "").trim(),
+    ip: getClientIp(req),
+    userAgent: getUserAgent(req),
+    expiresAt: new Date(Date.now() + ttl),
+  });
 };
 
 // ================= AUTO CREATE DEFAULT ADMIN =================
@@ -76,13 +236,13 @@ exports.ensureDefaultAdmin = async () => {
 // ================= LOGIN =================
 exports.login = async (req, res) => {
   try {
-    const { role, identifier, password } = req.body;
+    const { role, identifier, password, deviceId, deviceLabel } = req.body;
     const roleInput = String(role || "").trim().toLowerCase();
     let normalizedRole = roleInput === "employee" ? "worker" : roleInput;
     if (["site engineer", "siteengineer", "site_engineer"].includes(normalizedRole)) {
       normalizedRole = "siteEngineer";
     }
-    const normalizedIdentifier = String(identifier || "").trim();
+    const normalizedIdentifier = normalizeIdentifier(identifier);
 
     if (!normalizedRole || !normalizedIdentifier || !password) {
       return res.status(400).json({
@@ -98,27 +258,10 @@ exports.login = async (req, res) => {
       });
     }
 
-    let query = {};
-
-    if (normalizedRole === "worker") {
-      query = {
-        role: "worker",
-        $or: [{ workerId: normalizedIdentifier }, { email: normalizeEmail(normalizedIdentifier) }],
-      };
-    } else {
-      query = {
-        role: normalizedRole,
-        email: normalizeEmail(normalizedIdentifier),
-      };
-    }
-
-    let userQuery = User.findOne(query);
-
-    if (normalizedRole === "customer" && User.schema?.paths?.customer) {
-      userQuery = userQuery.populate("customer");
-    }
-
-    const user = await userQuery;
+    const user = await findLoginUser({
+      role: normalizedRole,
+      identifier: normalizedIdentifier,
+    });
 
     if (!user) {
       return res.status(400).json({
@@ -137,32 +280,64 @@ exports.login = async (req, res) => {
     const valid = await bcrypt.compare(password, user.password || "");
 
     if (!valid) {
+      await createOtpLog({
+        userId: user._id,
+        identifier: normalizedIdentifier,
+        role: normalizedRole,
+        purpose: "login",
+        status: "failed",
+        ip: getClientIp(req),
+        userAgent: getUserAgent(req),
+        meta: { reason: "invalidPassword" },
+      });
       return res.status(400).json({
         success: false,
         message: "Invalid password",
       });
     }
 
-    const token = signToken(user);
-
-    return res.json({
-      success: true,
-      result: {
-        token,
-        role: user.role,
-        user: {
-          _id: user._id,
-          name: user.name,
-          email: user.email || null,
-          role: user.role,
-          workerId: user.workerId || null,
-          companyName: user.companyName || null,
-          mobile: user.mobile || null,
-          customer: user.customer || null,
-        },
-      },
-      message: "Login successful",
+    const deviceCheck = await assertWorkerDevice(user, {
+      deviceId,
+      deviceLabel,
+      req,
+      allowRebind: true,
     });
+    if (!deviceCheck.ok) {
+      await createOtpLog({
+        userId: user._id,
+        identifier: normalizedIdentifier,
+        role: normalizedRole,
+        purpose: "login",
+        status: "failed",
+        ip: getClientIp(req),
+        userAgent: getUserAgent(req),
+        meta: { reason: "deviceMismatch", deviceId: String(deviceId || "") },
+      });
+      return res.status(deviceCheck.status || 403).json({
+        success: false,
+        message: deviceCheck.message,
+      });
+    }
+
+    user.lastLoginAt = new Date();
+    await user.save();
+
+    const expiresIn = loginExpiryByRole(user.role);
+    const token = signToken(user, expiresIn);
+    await createSession(user, token, { req, deviceId, deviceLabel, expiresIn });
+
+    await createOtpLog({
+      userId: user._id,
+      identifier: normalizedIdentifier,
+      role: normalizedRole,
+      purpose: "login",
+      status: "verified",
+      ip: getClientIp(req),
+      userAgent: getUserAgent(req),
+      meta: { method: "password" },
+    });
+
+    return res.json(makeAuthResponse(user, token, expiresIn));
   } catch (err) {
     return res.status(500).json({
       success: false,
@@ -239,7 +414,7 @@ exports.customerRegister = async (req, res) => {
 // ================= ADMIN CREATE WORKER =================
 exports.createWorker = async (req, res) => {
   try {
-    const { name, email, workerId, password } = req.body;
+    const { name, email, workerId, password, mobile, phone } = req.body;
 
     if (!name || !email || !workerId || !password) {
       return res.status(400).json({
@@ -267,6 +442,8 @@ exports.createWorker = async (req, res) => {
       name,
       email: emailLower,
       workerId: String(workerId).trim(),
+      mobile: String(mobile || phone || "").trim(),
+      phone: String(phone || mobile || "").trim(),
       password: hash,
       role: "worker",
     };
@@ -460,7 +637,10 @@ exports.resetPassword = async (req, res) => {
         resetPasswordMethod: "link",
       });
     } else if (otp && (email || phone)) {
-      const identifier = email ? { email: normalizeEmail(email) } : { phone: String(phone).trim() };
+      const normalizedPhone = String(phone || "").trim();
+      const identifier = email
+        ? { email: normalizeEmail(email) }
+        : { $or: [{ phone: normalizedPhone }, { mobile: normalizedPhone }] };
       user = await User.findOne({
         ...identifier,
         resetPasswordExpires: { $gt: Date.now() },
@@ -502,5 +682,236 @@ exports.resetPassword = async (req, res) => {
       success: false,
       message: err.message,
     });
+  }
+};
+
+// ================= LOGIN OTP (PHASE 1) =================
+exports.requestLoginOtp = async (req, res) => {
+  try {
+    const { role, identifier } = req.body || {};
+    const roleInput = String(role || "").trim().toLowerCase();
+    const normalizedRole =
+      roleInput === "employee"
+        ? "worker"
+        : ["site engineer", "siteengineer", "site_engineer"].includes(roleInput)
+          ? "siteEngineer"
+          : roleInput;
+    const normalizedIdentifier = normalizeIdentifier(identifier);
+
+    if (!canUseRole(normalizedRole)) {
+      return res.status(400).json({ success: false, message: "Invalid role" });
+    }
+    if (!normalizedIdentifier) {
+      return res.status(400).json({ success: false, message: "identifier is required" });
+    }
+
+    const user = await findLoginUser({
+      role: normalizedRole,
+      identifier: normalizedIdentifier,
+    });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    if (isUserInactive(user)) {
+      return res.status(403).json({ success: false, message: "User account is inactive" });
+    }
+
+    const now = Date.now();
+    if (user.loginOtpResendAt && new Date(user.loginOtpResendAt).getTime() > now) {
+      const waitSeconds = Math.ceil(
+        (new Date(user.loginOtpResendAt).getTime() - now) / 1000
+      );
+      await createOtpLog({
+        userId: user._id,
+        identifier: normalizedIdentifier,
+        role: normalizedRole,
+        purpose: "login",
+        status: "resendBlocked",
+        ip: getClientIp(req),
+        userAgent: getUserAgent(req),
+        meta: { waitSeconds },
+      });
+      return res.status(429).json({
+        success: false,
+        message: `Please wait ${waitSeconds}s before requesting a new OTP`,
+      });
+    }
+
+    const otp = makeOtp();
+    user.loginOtpHash = hashValue(otp);
+    user.loginOtpExpires = new Date(now + 5 * 60 * 1000);
+    user.loginOtpResendAt = new Date(now + 60 * 1000);
+    await user.save();
+
+    await createOtpLog({
+      userId: user._id,
+      identifier: normalizedIdentifier,
+      role: normalizedRole,
+      purpose: "login",
+      status: "issued",
+      ip: getClientIp(req),
+      userAgent: getUserAgent(req),
+      meta: { channel: user.mobile || user.phone ? "sms" : "app" },
+    });
+
+    return res.json({
+      success: true,
+      result: {
+        otp,
+        expiresInSeconds: 300,
+        resendAfterSeconds: 60,
+      },
+      message: "Login OTP generated",
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.verifyLoginOtp = async (req, res) => {
+  try {
+    const { role, identifier, otp, deviceId, deviceLabel } = req.body || {};
+    const roleInput = String(role || "").trim().toLowerCase();
+    const normalizedRole =
+      roleInput === "employee"
+        ? "worker"
+        : ["site engineer", "siteengineer", "site_engineer"].includes(roleInput)
+          ? "siteEngineer"
+          : roleInput;
+    const normalizedIdentifier = normalizeIdentifier(identifier);
+    const normalizedOtp = normalizeIdentifier(otp);
+
+    if (!canUseRole(normalizedRole) || !normalizedIdentifier || !normalizedOtp) {
+      return res.status(400).json({
+        success: false,
+        message: "role, identifier and otp are required",
+      });
+    }
+
+    const user = await findLoginUser({
+      role: normalizedRole,
+      identifier: normalizedIdentifier,
+    });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    if (isUserInactive(user)) {
+      return res.status(403).json({ success: false, message: "User account is inactive" });
+    }
+
+    if (!user.loginOtpHash || !user.loginOtpExpires || user.loginOtpExpires < new Date()) {
+      await createOtpLog({
+        userId: user._id,
+        identifier: normalizedIdentifier,
+        role: normalizedRole,
+        purpose: "login",
+        status: "expired",
+        ip: getClientIp(req),
+        userAgent: getUserAgent(req),
+      });
+      return res.status(400).json({ success: false, message: "OTP expired. Request a new OTP." });
+    }
+
+    const valid = user.loginOtpHash === hashValue(normalizedOtp);
+    if (!valid) {
+      await createOtpLog({
+        userId: user._id,
+        identifier: normalizedIdentifier,
+        role: normalizedRole,
+        purpose: "login",
+        status: "failed",
+        ip: getClientIp(req),
+        userAgent: getUserAgent(req),
+        meta: { reason: "invalidOtp" },
+      });
+      return res.status(400).json({ success: false, message: "Invalid OTP" });
+    }
+
+    const deviceCheck = await assertWorkerDevice(user, {
+      deviceId,
+      deviceLabel,
+      req,
+      allowRebind: true,
+    });
+    if (!deviceCheck.ok) {
+      return res.status(deviceCheck.status || 403).json({
+        success: false,
+        message: deviceCheck.message,
+      });
+    }
+
+    user.loginOtpHash = null;
+    user.loginOtpExpires = null;
+    user.lastLoginAt = new Date();
+    await user.save();
+
+    const expiresIn = loginExpiryByRole(user.role);
+    const token = signToken(user, expiresIn);
+    await createSession(user, token, { req, deviceId, deviceLabel, expiresIn });
+
+    await createOtpLog({
+      userId: user._id,
+      identifier: normalizedIdentifier,
+      role: normalizedRole,
+      purpose: "login",
+      status: "verified",
+      ip: getClientIp(req),
+      userAgent: getUserAgent(req),
+      meta: { method: "otp" },
+    });
+
+    return res.json(makeAuthResponse(user, token, expiresIn));
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.resendLoginOtp = async (req, res) => {
+  req.body = { ...(req.body || {}), force: true };
+  return exports.requestLoginOtp(req, res);
+};
+
+exports.me = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, message: "Unauthorized" });
+    return res.json({
+      success: true,
+      result: {
+        _id: user._id,
+        name: user.name,
+        email: user.email || null,
+        role: user.role,
+        workerId: user.workerId || null,
+        mobile: user.mobile || null,
+        boundDeviceId: user.boundDeviceId || "",
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.logout = async (req, res) => {
+  try {
+    const auth = req.headers.authorization || "";
+    const token = auth.startsWith("Bearer ") ? auth.split(" ")[1] : "";
+    if (token && AuthSession && req.user?._id) {
+      await AuthSession.findOneAndUpdate(
+        {
+          userId: req.user._id,
+          tokenHash: toTokenHash(token),
+          isRevoked: false,
+        },
+        {
+          isRevoked: true,
+          revokedAt: new Date(),
+          revokedReason: "logout",
+        }
+      );
+    }
+    return res.json({ success: true, message: "Logged out successfully" });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 };

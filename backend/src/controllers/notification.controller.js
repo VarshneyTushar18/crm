@@ -52,7 +52,21 @@ const buildListFilter = async (req) => {
   }
 
   return {
-    $or: [{ userId }, { userId: null, role: { $in: [role, "all"] } }],
+    $or: [
+      { userId },
+      {
+        userId: null,
+        role: {
+          $in: [
+            role,
+            "all",
+            String(req.user?.role || "").trim(),
+            // historical casing for site engineer notifications
+            role === "siteengineer" ? "siteEngineer" : null,
+          ].filter(Boolean),
+        },
+      },
+    ],
   };
 };
 

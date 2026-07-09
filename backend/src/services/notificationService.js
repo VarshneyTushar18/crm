@@ -3,6 +3,16 @@ const User = require("../models/appModels/User");
 const ScheduleAssignment = require("../models/appModels/ScheduleAssignment");
 const { STAGE_LABELS } = require("../utils/workflowDefaults");
 
+const NOTIFICATION_ROLES = new Set(["admin", "worker", "customer", "siteengineer", "all"]);
+
+const normalizeNotificationRole = (role) => {
+  const raw = String(role || "admin").trim();
+  const lower = raw.toLowerCase();
+  if (lower === "siteengineer" || lower === "site_engineer") return "siteengineer";
+  if (NOTIFICATION_ROLES.has(lower)) return lower;
+  return "admin";
+};
+
 const createNotification = async ({
   userId = null,
   customerId = null,
@@ -17,18 +27,23 @@ const createNotification = async ({
 }) => {
   if (!title) return null;
 
-  return Notification.create({
-    userId,
-    customerId,
-    role,
-    type,
-    title,
-    body,
-    link,
-    jobId,
-    scheduledFor,
-    metadata,
-  });
+  try {
+    return await Notification.create({
+      userId,
+      customerId,
+      role: normalizeNotificationRole(role),
+      type,
+      title,
+      body,
+      link,
+      jobId,
+      scheduledFor,
+      metadata,
+    });
+  } catch (err) {
+    console.error("Notification create failed:", err.message);
+    return null;
+  }
 };
 
 const notifyWorkflow = async ({ job, stageKey, message, actor }) => {
@@ -194,8 +209,8 @@ const notifyJobComment = async ({ job, comment, actor }) => {
   const body = `${actor?.name || "Someone"} (${actor?.role || "staff"}): ${preview}`;
   const authorId = actor?.id ? String(actor.id) : null;
 
-  const adminLink = `/admin/job/${job._id}`;
-  const seLink = `/admin/site-engineer?jobId=${job._id}`;
+  const adminLink = `/admin/team-chat?jobId=${job._id}`;
+  const seLink = `/admin/team-chat?jobId=${job._id}`;
   const workerLink = `/worker?jobId=${job._id}`;
 
   const tasks = [];
@@ -217,7 +232,11 @@ const notifyJobComment = async ({ job, comment, actor }) => {
     );
   });
 
-  const seUsers = await User.find({ role: "siteEngineer", isActive: { $ne: false } }).select("_id");
+  // Site engineers / site managers — notify every active SE account
+  const seUsers = await User.find({
+    role: { $in: ["siteEngineer", "siteengineer"] },
+    isActive: { $ne: false },
+  }).select("_id");
   seUsers.forEach((user) => {
     if (authorId && String(user._id) === authorId) return;
     tasks.push(
@@ -279,7 +298,7 @@ const notifyJobComment = async ({ job, comment, actor }) => {
   }
 
   if (tasks.length) {
-    await Promise.all(tasks);
+    await Promise.allSettled(tasks);
   }
 
   return tasks.length;

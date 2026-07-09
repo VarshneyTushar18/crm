@@ -1,10 +1,8 @@
 import { useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
-import { Avatar, Dropdown, Layout, Badge, Button } from 'antd';
+import { Avatar, Dropdown, Layout, Button } from 'antd';
 
-// import Notifications from '@/components/Notification';
-
-import { LogoutOutlined, ToolOutlined, UserOutlined } from '@ant-design/icons';
+import { LogoutOutlined, ToolOutlined, UserOutlined, MessageOutlined } from '@ant-design/icons';
 
 import { selectCurrentAdmin } from '@/redux/auth/selectors';
 
@@ -13,15 +11,16 @@ import { FILE_BASE_URL } from '@/config/serverApiConfig';
 import useLanguage from '@/locale/useLanguage';
 
 import UpgradeButton from './UpgradeButton';
+import NotificationBell from '@/components/NotificationBell';
 
 export default function HeaderContent() {
   const currentAdmin = useSelector(selectCurrentAdmin);
   const { Header } = Layout;
+  const navigate = useNavigate();
 
   const translate = useLanguage();
 
   const ProfileDropdown = () => {
-    const navigate = useNavigate();
     return (
       <div className="profileDropdown" onClick={() => navigate('/profile')}>
         <Avatar
@@ -92,7 +91,8 @@ export default function HeaderContent() {
         display: 'flex',
         flexDirection: 'row-reverse',
         justifyContent: 'flex-start',
-        gap: ' 15px',
+        gap: '15px',
+        alignItems: 'center',
       }}
     >
       <Dropdown
@@ -103,7 +103,6 @@ export default function HeaderContent() {
         placement="bottomRight"
         stye={{ width: '280px', float: 'right' }}
       >
-        {/* <Badge dot> */}
         <Avatar
           className="last"
           src={currentAdmin?.photo ? FILE_BASE_URL + currentAdmin?.photo : undefined}
@@ -118,16 +117,20 @@ export default function HeaderContent() {
         >
           {currentAdmin?.name?.charAt(0)?.toUpperCase()}
         </Avatar>
-        {/* </Badge> */}
       </Dropdown>
 
-      {/* <AppsButton /> */}
+      <NotificationBell />
+
+      <Button
+        type="default"
+        icon={<MessageOutlined />}
+        onClick={() => navigate('/admin/team-chat')}
+        style={{ marginTop: 2 }}
+      >
+        Chat
+      </Button>
 
       <UpgradeButton />
     </Header>
   );
 }
-
-//  console.log(
-//    '🚀 Welcome to IDURAR ERP CRM! Did you know that we also offer commercial customization services? Contact us at hello@idurarapp.com for more information.'
-//  );

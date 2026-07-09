@@ -35,6 +35,8 @@ import Customer from "../pages/Customer";
 
 // ✅ Worker
 import WorkerDashboard from "../pages/Worker/WorkerDashboard";
+import WorkerTaskManager from "../pages/WorkerTasks";
+import TeamChatDashboard from "../pages/TeamChat";
 
 // ✅ Customer Portal Layout + Pages
 import CustomerLayout from "../apps/Navigation/CustomerLayout";
@@ -143,6 +145,8 @@ export default function AppRouter() {
           <Route path="scheduling" element={<Scheduling />} />
           <Route path="drafting" element={<Drafting />} />
           <Route path="site-engineer" element={<SiteEngineer />} />
+          <Route path="worker-tasks" element={<WorkerTaskManager />} />
+          <Route path="team-chat" element={<TeamChatDashboard />} />
 
           {/* ✅ Production group */}
           <Route path="kanban" element={<Kanban />} />

@@ -1,5 +1,9 @@
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
+const crypto = require("crypto");
+
+const tokenHash = (token = "") =>
+  crypto.createHash("sha256").update(String(token)).digest("hex");
 
 // ✅ Accept Bearer JWT from frontend (Authorization: Bearer <token>)
 exports.isValidAuthToken = async (req, res, next) => {
@@ -45,6 +49,22 @@ exports.isValidAuthToken = async (req, res, next) => {
       });
     }
 
+    const AuthSession = mongoose.models.AuthSession;
+    if (AuthSession) {
+      const activeSession = await AuthSession.findOne({
+        userId: user._id,
+        tokenHash: tokenHash(token),
+        isRevoked: false,
+        expiresAt: { $gt: new Date() },
+      }).select("_id");
+      if (!activeSession) {
+        return res.status(401).json({
+          success: false,
+          message: "Session expired. Please login again.",
+        });
+      }
+    }
+
     // Attach user
     req.user = user;
 
@@ -55,4 +75,18 @@ exports.isValidAuthToken = async (req, res, next) => {
       message: "User doesn't Exist, authorization denied.",
     });
   }
+};
+
+exports.requireRoles = (...roles) => {
+  const allow = new Set(roles.map((r) => String(r || "").trim()));
+  return (req, res, next) => {
+    const role = String(req.user?.role || "").trim();
+    if (!allow.has(role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied for this role",
+      });
+    }
+    return next();
+  };
 };

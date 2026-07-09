@@ -2,6 +2,8 @@ export const SITE_ENGINEER_MENU_KEYS = new Set([
   "jobs",
   "scheduling",
   "site-engineer",
+  "worker-tasks",
+  "team-chat",
   "fabrication",
   "qc",
   "installation",

@@ -4,7 +4,11 @@ import { API_BASE_URL, multipartAuthHeaders } from "@/config/serverApiConfig";
 const API = `${API_BASE_URL}/scheduling`;
 
 const authHeaders = () => {
-  const token = localStorage.getItem("token");
+  const token =
+    localStorage.getItem("token") ||
+    localStorage.getItem("authToken") ||
+    localStorage.getItem("jwt") ||
+    "";
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
@@ -164,6 +168,15 @@ export const getAdminDashboardOverview = async (params = {}) => {
 export const getJobComments = async (jobId) => {
   const res = await axios.get(`${API_BASE_URL}/job-comments/list/${jobId}`, {
     headers: authHeaders(),
+  });
+  return res.data?.result || [];
+};
+
+/** All job team-chat threads (admin / site engineer inbox). */
+export const getTeamChatInbox = async (params = {}) => {
+  const res = await axios.get(`${API_BASE_URL}/job-comments/inbox`, {
+    headers: authHeaders(),
+    params,
   });
   return res.data?.result || [];
 };

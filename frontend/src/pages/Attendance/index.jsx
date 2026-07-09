@@ -23,6 +23,7 @@ import {
   createAttendance,
   updateAttendance,
 } from "./attendanceApi";
+import EmployeeTimesheetPanel from "./EmployeeTimesheetPanel";
 
 const { Option } = Select;
 const { Title, Text } = Typography;
@@ -413,7 +414,7 @@ export default function Attendance() {
           </Title>
           <Text type="secondary">
             {currentUserRole === "admin"
-              ? "Add manual attendance, edit attendance, and track employee records by date range"
+              ? "Employee punch timesheet (photos + check-in/out) and manual attendance records"
               : "View your attendance records"}
           </Text>
         </Col>
@@ -429,7 +430,9 @@ export default function Attendance() {
 
       <Divider />
 
-      <Card style={{ marginBottom: 20 }}>
+      {currentUserRole === "admin" ? <EmployeeTimesheetPanel /> : null}
+
+      <Card style={{ marginBottom: 20, marginTop: currentUserRole === "admin" ? 16 : 0 }}>
         <Row gutter={[16, 16]}>
           {currentUserRole === "admin" && (
             <Col xs={24} sm={12} md={6}>

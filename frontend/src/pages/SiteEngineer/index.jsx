@@ -13,6 +13,7 @@ import {
   Table,
   Tag,
   Tabs,
+  Typography,
   message,
 } from "antd";
 import { EyeOutlined } from "@ant-design/icons";
@@ -35,6 +36,7 @@ import JobChatPanel from "@/components/JobChatPanel";
 
 const { Option } = Select;
 const { TextArea } = Input;
+const { Text } = Typography;
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All statuses" },
@@ -597,15 +599,38 @@ export default function SiteEngineer() {
           {
             key: "chat",
             label: "Team Chat",
-            children: jobId ? (
-              <Card size="small">
-                <JobChatPanel
-                  jobId={jobId}
-                  jobLabel={selectedJob?.jobId || jobId}
-                />
-              </Card>
-            ) : (
-              <Empty description="Select a job to use team chat" />
+            children: (
+              <Space direction="vertical" style={{ width: "100%" }} size={12}>
+                <Card size="small">
+                  <Space wrap>
+                    <Text>
+                      Open the full inbox to see chats from all jobs and people.
+                    </Text>
+                    <Button type="primary" onClick={() => navigate("/admin/team-chat")}>
+                      Open all chats
+                    </Button>
+                    {jobId ? (
+                      <Button
+                        onClick={() =>
+                          navigate(`/admin/team-chat?jobId=${jobId}`)
+                        }
+                      >
+                        Open this job chat
+                      </Button>
+                    ) : null}
+                  </Space>
+                </Card>
+                {jobId ? (
+                  <Card size="small" title={`This job — ${selectedJob?.jobId || jobId}`}>
+                    <JobChatPanel
+                      jobId={jobId}
+                      jobLabel={selectedJob?.jobId || jobId}
+                    />
+                  </Card>
+                ) : (
+                  <Empty description="Select a job above, or open All chats to browse every thread" />
+                )}
+              </Space>
             ),
           },
         ]}

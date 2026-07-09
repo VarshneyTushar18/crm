@@ -67,6 +67,10 @@ router.use("/employee", asRouter(require("./employee.routes"), "employee.routes"
 router.use("/attendance", asRouter(require("./attendance.routes"), "attendance.routes"));
 router.use("/leave", asRouter(require("./leave.routes"), "leave.routes"));
 router.use(
+  "/worker-tasks",
+  asRouter(require("./workerTask.routes"), "workerTask.routes")
+);
+router.use(
   "/notifications",
   asRouter(require("./notification.routes"), "notification.routes")
 );

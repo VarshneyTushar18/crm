@@ -24,6 +24,10 @@ import dayjs from "dayjs";
 import BrandLogo from "@/components/BrandLogo";
 import JobChatPanel from "@/components/JobChatPanel";
 import NotificationBell from "@/components/NotificationBell";
+import WorkerAttendanceBar from "@/components/WorkerAttendanceBar";
+import WorkerTaskTimerBar from "@/components/WorkerTaskTimerBar";
+import WorkerTasksTab from "@/pages/Worker/WorkerTasksTab";
+import WorkerAttendanceHistory from "@/pages/Worker/WorkerAttendanceHistory";
 import { getWorkerAssignedJobs } from "@/api/extensionApi";
 import { getMyJobCards, executeJobCard } from "@/pages/Installation/jobCardApi";
 import { getMyProductivitySummary } from "@/pages/Productivity/productivityApi";
@@ -59,6 +63,7 @@ export default function WorkerDashboard() {
   const [saving, setSaving] = useState(false);
   const [productivity, setProductivity] = useState(null);
   const [executeForm] = Form.useForm();
+  const [attendanceHistoryKey, setAttendanceHistoryKey] = useState(0);
 
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const selectedJobId = searchParams.get("jobId") || "";
@@ -223,7 +228,12 @@ export default function WorkerDashboard() {
           <BrandLogo variant="header" />
         </Col>
         <Col xs={24} md={12} style={{ textAlign: "right" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <WorkerAttendanceBar
+              jobId={selectedJobId}
+              onChanged={() => setAttendanceHistoryKey((k) => k + 1)}
+            />
+            <WorkerTaskTimerBar />
             <NotificationBell />
             <Button type="primary" danger onClick={handleLogout}>
               Logout
@@ -243,6 +253,18 @@ export default function WorkerDashboard() {
         <Tabs
           size="small"
           items={[
+            {
+              key: "my-tasks",
+              label: "My Tasks",
+              children: <WorkerTasksTab />,
+            },
+            {
+              key: "attendance",
+              label: "Attendance History",
+              children: (
+                <WorkerAttendanceHistory key={attendanceHistoryKey} />
+              ),
+            },
             {
               key: "today",
               label: `Today (${todayAssignments.length})`,

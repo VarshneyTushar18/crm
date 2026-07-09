@@ -42,27 +42,47 @@ export default function NotificationBell() {
         if (popupShownRef.current.has(item._id)) return;
         popupShownRef.current.add(item._id);
 
-        api.info({
+        const isTeamChat =
+          String(item.title || "").toLowerCase().includes("team chat") ||
+          item?.metadata?.action === "job_comment";
+
+        const openLink = async () => {
+          try {
+            if (!item.read) {
+              await markNotificationRead(item._id);
+            }
+          } catch {
+            // Ignore read-mark failure for popup click.
+          }
+          const link =
+            item.link ||
+            (item.jobId ? `/admin/team-chat?jobId=${item.jobId}` : "/admin/team-chat");
+          navigate(link);
+          setOpen(false);
+          load({ silent: true });
+        };
+
+        const common = {
           key: item._id,
           message: item.title || "New notification",
-          description: item.body || "",
+          description: (
+            <span style={isTeamChat ? { color: "#cf1322", fontWeight: 600 } : undefined}>
+              {item.body || ""}
+            </span>
+          ),
           placement: "topRight",
-          duration: 6,
-          onClick: async () => {
-            try {
-              if (!item.read) {
-                await markNotificationRead(item._id);
-              }
-            } catch {
-              // Ignore read-mark failure for popup click.
-            }
-            if (item.link) {
-              navigate(item.link);
-              setOpen(false);
-            }
-            load({ silent: true });
-          },
-        });
+          duration: 8,
+          onClick: openLink,
+        };
+
+        if (isTeamChat) {
+          api.error({
+            ...common,
+            style: { borderLeft: "4px solid #ff4d4f" },
+          });
+        } else {
+          api.info(common);
+        }
       });
     },
     [api, navigate]
