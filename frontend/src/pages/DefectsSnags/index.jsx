@@ -68,6 +68,7 @@ const DefectsSnags = () => {
   const [clearOpen, setClearOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [clearing, setClearing] = useState(null);
+  const [addFileList, setAddFileList] = useState([]);
 
   const [addForm] = Form.useForm();
   const [editForm] = Form.useForm();
@@ -158,13 +159,14 @@ const DefectsSnags = () => {
       status: "Open",
       dueDate: null,
     });
+    setAddFileList([]);
     setAddOpen(true);
   };
 
   const submitAdd = async (values) => {
     setSaving(true);
     try {
-      await createDefectSnag({
+      const created = await createDefectSnag({
         jobId: selectedJobId,
         type: values.type,
         title: values.title,
@@ -175,8 +177,25 @@ const DefectsSnags = () => {
         status: values.status || "Open",
         source: "manual",
       });
+
+      const files = (addFileList || [])
+        .map((f) => f.originFileObj)
+        .filter(Boolean);
+
+      if (created?._id && files.length) {
+        try {
+          await uploadDefectSnagFiles(created._id, files, "evidence");
+        } catch (uploadErr) {
+          message.warning(
+            uploadErr?.response?.data?.message ||
+              "Defect / snag saved, but photo upload failed — edit to retry"
+          );
+        }
+      }
+
       message.success("Defect / snag added");
       setAddOpen(false);
+      setAddFileList([]);
       await loadItems(selectedJobId);
     } catch (err) {
       message.error(err?.response?.data?.message || "Failed to add");
@@ -556,7 +575,10 @@ const DefectsSnags = () => {
       <Modal
         title="Add Defect / Snag"
         open={addOpen}
-        onCancel={() => setAddOpen(false)}
+        onCancel={() => {
+          setAddOpen(false);
+          setAddFileList([]);
+        }}
         onOk={() => addForm.submit()}
         confirmLoading={saving}
         destroyOnClose
@@ -564,6 +586,18 @@ const DefectsSnags = () => {
       >
         <Form form={addForm} layout="vertical" onFinish={submitAdd}>
           {formFields(true)}
+          <Form.Item label="Photos">
+            <Upload
+              multiple
+              accept="image/*,.pdf"
+              listType="picture"
+              fileList={addFileList}
+              beforeUpload={() => false}
+              onChange={({ fileList }) => setAddFileList(fileList)}
+            >
+              <Button icon={<UploadOutlined />}>Add photos</Button>
+            </Upload>
+          </Form.Item>
         </Form>
       </Modal>
 
