@@ -52,15 +52,24 @@ const server = app.listen(app.get('port'), () => {
 });
 const { seedDefaultUsers } = require("./setup/seedUsers");
 const { seedDemoData, ensureCustomerPortalData } = require("./setup/seedDemoData");
+const { ensureDefaultPaymentModes } = require("./utils/ensurePaymentModes");
 
 mongoose.connection.once("open", async () => {
   try {
     await seedDefaultUsers();
+    await ensureDefaultPaymentModes();
     await seedDemoData();
     await ensureCustomerPortalData();
     const { ensureDefaultLeadSources } = require("./utils/leadSources");
     await ensureDefaultLeadSources();
   } catch (err) {
     console.error("⚠️ Seed failed:", err.message);
+  }
+
+  try {
+    const { startLeadFollowUpReminderScheduler } = require("./services/leadFollowUpReminderService");
+    startLeadFollowUpReminderScheduler();
+  } catch (err) {
+    console.error("⚠️ Lead follow-up reminder scheduler failed to start:", err.message);
   }
 });

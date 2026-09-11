@@ -179,24 +179,50 @@ const assertWorkerDevice = async (user, { deviceId, deviceLabel, req, allowRebin
   return { ok: true };
 };
 
+const MAX_ACTIVE_SESSIONS = 5;
+
 const createSession = async (user, token, { req, deviceId = "", deviceLabel = "", expiresIn }) => {
   if (!AuthSession) return;
   const ttl = expiryToMs(expiresIn || loginExpiryByRole(user.role));
   const now = new Date();
-  await AuthSession.updateMany(
-    { userId: user._id, isRevoked: false },
-    { isRevoked: true, revokedAt: now, revokedReason: "new_login" }
-  );
+  const normalizedDeviceId = String(deviceId || "").trim();
+
+  // Same device re-login: replace only that device's session (not all devices)
+  if (normalizedDeviceId) {
+    await AuthSession.updateMany(
+      { userId: user._id, deviceId: normalizedDeviceId, isRevoked: false },
+      { isRevoked: true, revokedAt: now, revokedReason: "device_relogin" }
+    );
+  }
+
   await AuthSession.create({
     userId: user._id,
     tokenHash: toTokenHash(token),
     role: user.role,
-    deviceId: String(deviceId || "").trim(),
+    deviceId: normalizedDeviceId,
     deviceLabel: String(deviceLabel || "").trim(),
     ip: getClientIp(req),
     userAgent: getUserAgent(req),
     expiresAt: new Date(Date.now() + ttl),
   });
+
+  // Allow up to 5 concurrent devices; revoke oldest when over limit
+  const activeSessions = await AuthSession.find({
+    userId: user._id,
+    isRevoked: false,
+    expiresAt: { $gt: now },
+  })
+    .sort({ createdAt: -1 })
+    .select("_id")
+    .lean();
+
+  if (activeSessions.length > MAX_ACTIVE_SESSIONS) {
+    const toRevoke = activeSessions.slice(MAX_ACTIVE_SESSIONS).map((s) => s._id);
+    await AuthSession.updateMany(
+      { _id: { $in: toRevoke } },
+      { isRevoked: true, revokedAt: now, revokedReason: "max_devices" }
+    );
+  }
 };
 
 // ================= AUTO CREATE DEFAULT ADMIN =================

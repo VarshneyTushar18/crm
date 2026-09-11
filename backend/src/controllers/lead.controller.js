@@ -9,6 +9,7 @@ const bcrypt = require("bcryptjs");
 const { generate: uniqueId } = require('shortid');
 const sendMail = require("../controllers/middlewaresControllers/createAuthMiddleware/sendMail");
 const { linkJobToQuote } = require("../utils/linkJobQuote");
+const { ensureSiteForJob } = require("../utils/linkJobSite");
 
 if (!Lead) throw new Error("Lead model not loaded");
 if (!Job) throw new Error("Job model not loaded");
@@ -329,6 +330,10 @@ exports.createJobFromLead = async (req, res) => {
     });
 
     await linkJobToQuote({ job, leadId: lead._id });
+
+    if (job.site) {
+      await ensureSiteForJob(job);
+    }
 
     // =========================
     // 4) Mark lead converted

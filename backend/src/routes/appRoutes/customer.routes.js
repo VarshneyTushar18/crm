@@ -15,6 +15,7 @@ router.get("/financial-summary", controller.financialSummary);
 router.get("/invoices", controller.invoices);
 router.get("/invoices/:id", controller.invoiceById);
 router.post("/invoice/notify/:id", controller.notifyPayment);
+router.get("/payment-modes", controller.paymentModes);
 router.get("/payments/summary", controller.paymentSummary);
 router.post("/enquiry", controller.submitEnquiry);
 

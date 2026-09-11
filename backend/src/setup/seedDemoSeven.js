@@ -28,7 +28,6 @@ const PurchaseOrder = require("../models/appModels/PurchaseOrder");
 const Supplier = require("../models/appModels/Supplier");
 const Site = require("../models/appModels/Site");
 const Taxes = require("../models/appModels/Taxes");
-const PaymentMode = require("../models/appModels/PaymentMode");
 const Admin = require("../models/coreModels/Admin");
 const User = require("../models/appModels/User");
 
@@ -137,14 +136,12 @@ async function ensureErpBasics() {
     tax = await Taxes.create({ taxName: "GST 10%", taxValue: 10, isDefault: true });
   }
 
-  let paymentMode = await PaymentMode.findOne({ removed: false });
-  if (!paymentMode) {
-    paymentMode = await PaymentMode.create({
-      name: "Bank Transfer",
-      description: "Direct bank transfer",
-      isDefault: true,
-    });
-  }
+  const { ensureDefaultPaymentModes } = require("../utils/ensurePaymentModes");
+  const paymentModes = await ensureDefaultPaymentModes();
+  const paymentMode =
+    paymentModes.find((m) => m.isDefault) ||
+    paymentModes.find((m) => m.name === "Bank Transfer") ||
+    paymentModes[0];
 
   let admin = await Admin.findOne({ email: "admin@crm.com" });
   if (!admin) {

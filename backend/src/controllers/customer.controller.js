@@ -6,12 +6,17 @@ const bcrypt = require("bcrypt");
 const Customer = mongoose.models.Customer;
 const User = mongoose.models.User;
 const Job = require("../models/appModels/Job");
+const PaymentMode = require("../models/appModels/PaymentMode");
 const Payment = mongoose.models.Payment;
 const Invoice = mongoose.models.Invoice;
 const { sanitizeJobForPortal } = require("../utils/portalJobMapper");
 const { migrateJobWorkflowToV3 } = require("../utils/workflowDefaults");
 const { sanitizeQuoteForPortal } = require("../utils/linkJobQuote");
 const { notifyAdminPaymentClaim } = require("../services/notificationService");
+const {
+  ensureDefaultPaymentModes,
+  sortCanonicalPaymentModes,
+} = require("../utils/ensurePaymentModes");
 
 const Quote = mongoose.models.Quote;
 const Drafting = mongoose.models.Drafting;
@@ -671,6 +676,31 @@ exports.documents = async (req, res) => {
       success: true,
       result: documents,
       message: "Documents fetched successfully",
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ================= CUSTOMER PORTAL: PAYMENT MODES =================
+exports.paymentModes = async (req, res) => {
+  try {
+    const user = await getLoggedInUser(req);
+    if (!user) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    if (!PaymentMode) {
+      return res.status(500).json({ success: false, message: "PaymentMode model not loaded" });
+    }
+
+    await ensureDefaultPaymentModes();
+    const modes = await PaymentMode.find({ removed: false, enabled: true })
+      .select("_id name isDefault")
+      .lean();
+
+    return res.json({
+      success: true,
+      result: sortCanonicalPaymentModes(modes),
+      message: "Payment modes fetched successfully",
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

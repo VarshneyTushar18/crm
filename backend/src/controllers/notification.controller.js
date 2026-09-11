@@ -92,6 +92,17 @@ const findOwnedNotification = async (req, id) => {
 
 exports.list = async (req, res) => {
   try {
+    const role = String(req.user?.role || "").toLowerCase();
+    if (role === "admin") {
+      // Ensure today's follow-up reminders exist when admin opens the bell.
+      try {
+        const { processLeadFollowUpReminders } = require("../services/leadFollowUpReminderService");
+        await processLeadFollowUpReminders();
+      } catch {
+        // Non-blocking.
+      }
+    }
+
     const scopeFilter = await buildListFilter(req);
     const filter = { ...scopeFilter, ...retentionFilter() };
 

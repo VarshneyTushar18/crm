@@ -19,10 +19,10 @@ const Payment = require("../models/appModels/Payment");
 const Attendance = require("../models/appModels/Attendance");
 const Contact = require("../models/appModels/Contact");
 const Taxes = require("../models/appModels/Taxes");
-const PaymentMode = require("../models/appModels/PaymentMode");
 const Admin = require("../models/coreModels/Admin");
 const { linkJobToQuote } = require("../utils/linkJobQuote");
 const { buildDefaultWorkflowEvents } = require("../utils/workflowDefaults");
+const { ensureDefaultPaymentModes } = require("../utils/ensurePaymentModes");
 
 const DEMO_MARKER_JOB_ID = "DEMO-J-001";
 
@@ -51,14 +51,11 @@ async function ensureErpBasics() {
     tax = await Taxes.create({ taxName: "GST 10%", taxValue: 10, isDefault: true });
   }
 
-  let paymentMode = await PaymentMode.findOne({ removed: false });
-  if (!paymentMode) {
-    paymentMode = await PaymentMode.create({
-      name: "Bank Transfer",
-      description: "Direct bank transfer",
-      isDefault: true,
-    });
-  }
+  const paymentModes = await ensureDefaultPaymentModes();
+  const paymentMode =
+    paymentModes.find((m) => m.isDefault) ||
+    paymentModes.find((m) => m.name === "Bank Transfer") ||
+    paymentModes[0];
 
   let admin = await Admin.findOne({ email: "admin@crm.com" });
   if (!admin) {
@@ -71,7 +68,7 @@ async function ensureErpBasics() {
     });
   }
 
-  return { tax, paymentMode, admin };
+  return { tax, paymentMode, admin, paymentModes };
 }
 
 async function clearDemoData() {
@@ -860,4 +857,9 @@ async function ensureCustomerPortalData() {
   console.log("✅ Customer portal demo data ready (projects, invoices, payments, contacts, quotes)");
 }
 
-module.exports = { seedDemoData, clearDemoData, ensureCustomerPortalData, DEMO_MARKER_JOB_ID };
+module.exports = {
+  seedDemoData,
+  clearDemoData,
+  ensureCustomerPortalData,
+  DEMO_MARKER_JOB_ID,
+};

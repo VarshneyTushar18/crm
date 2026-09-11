@@ -16,6 +16,8 @@ if (!Job) throw new Error("Job model not loaded");
 if (!Customer) throw new Error("Customer model not loaded");
 if (!User) throw new Error("User model not loaded");
 
+const { ensureSiteForJob } = require("../utils/linkJobSite");
+
 // helper: generate readable unique jobId
 const generateJobId = () => {
   const d = new Date();
@@ -513,6 +515,10 @@ exports.approveQuoteAndCreateJob = async (req, res) => {
       stage: "Site Measurement",
       workflowEvents: require("../utils/workflowDefaults").buildDefaultWorkflowEvents(),
     });
+
+    if (job.site) {
+      await ensureSiteForJob(job);
+    }
 
     quote.status = "Accepted";
     quote.approvedAt = new Date();

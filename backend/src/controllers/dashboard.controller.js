@@ -192,6 +192,7 @@ exports.adminOverview = async (req, res) => {
 
     const jobs = await Job.find({ removed: { $ne: true } }).sort({ updatedAt: -1 });
     const workflowStageCounts = {};
+    const workflowStageJobs = {};
     let avgProgressTotal = 0;
     let activeJobs = 0;
     let completedJobs = 0;
@@ -217,6 +218,14 @@ exports.adminOverview = async (req, res) => {
 
       const currentStage = getCurrentWorkflowStage(job);
       workflowStageCounts[currentStage] = (workflowStageCounts[currentStage] || 0) + 1;
+      if (!workflowStageJobs[currentStage]) workflowStageJobs[currentStage] = [];
+      workflowStageJobs[currentStage].push({
+        _id: job._id,
+        jobId: job.jobId,
+        customer: job.customer || "",
+        systemState: job.systemState || "New",
+        onHold: !!job.conditions?.onHold,
+      });
     }
 
     const workflowStages = Object.entries(workflowStageCounts)
@@ -224,6 +233,7 @@ exports.adminOverview = async (req, res) => {
         key,
         label: STAGE_LABELS[key] || key,
         count,
+        jobs: workflowStageJobs[key] || [],
       }))
       .sort((a, b) => b.count - a.count);
 

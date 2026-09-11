@@ -225,15 +225,16 @@ exports.listByJob = async (req, res) => {
 
 exports.calendar = async (req, res) => {
   try {
-    const { from, to, role, assigneeId, jobId } = req.query;
+    const { from, to, role, assigneeId, jobId, status, team } = req.query;
     const filter = {};
 
     if (jobId) filter.jobId = jobId;
     if (role) filter.role = role;
-    if (assigneeId) filter.$or = [
-      { assigneeId },
-      { "assignees.assigneeId": assigneeId },
-    ];
+    if (status) filter.status = status;
+    if (team) filter.teams = String(team).trim();
+    if (assigneeId) {
+      filter.$or = [{ assigneeId }, { "assignees.assigneeId": assigneeId }];
+    }
 
     if (from || to) {
       filter.startTime = {};

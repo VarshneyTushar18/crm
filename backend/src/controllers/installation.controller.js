@@ -10,6 +10,10 @@ const {
     getNextSequenceOrder,
 } = require("../utils/installationSequence");
 const { persistFile, persistFiles } = require("../utils/persistUpload");
+const {
+    syncFromInstallationActivity,
+    countOpenForJob,
+} = require("./defectSnag.controller");
 
 const sumHoursLog = (hoursLog = []) =>
     (Array.isArray(hoursLog) ? hoursLog : []).reduce(
@@ -180,6 +184,12 @@ exports.create = async (req, res) => {
                 : toNumber(actualHours),
         });
 
+        try {
+            await syncFromInstallationActivity(item);
+        } catch (syncErr) {
+            console.warn("Defect/snag sync on create failed:", syncErr?.message || syncErr);
+        }
+
         return res.status(201).json({
             success: true,
             result: item,
@@ -298,6 +308,12 @@ exports.update = async (req, res) => {
                 success: false,
                 message: "Installation activity not found",
             });
+        }
+
+        try {
+            await syncFromInstallationActivity(updated);
+        } catch (syncErr) {
+            console.warn("Defect/snag sync on update failed:", syncErr?.message || syncErr);
         }
 
         return res.status(200).json({
@@ -482,6 +498,14 @@ exports.markComplete = async (req, res) => {
             });
         }
 
+        const openDefects = await countOpenForJob(jobId);
+        if (openDefects > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Clear all defects & snags before completion (${openDefects} still open)`,
+            });
+        }
+
         const missingPhotos = items.some(
             (item) => !Array.isArray(item.photoUrls) || item.photoUrls.length === 0
         );
@@ -571,6 +595,14 @@ exports.finalize = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: "All installation activities must be completed before closure",
+            });
+        }
+
+        const openDefects = await countOpenForJob(jobId);
+        if (openDefects > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Clear all defects & snags before sign-off (${openDefects} still open)`,
             });
         }
 
@@ -735,6 +767,12 @@ exports.uploadActivityFiles = async (req, res) => {
 
         item.photoUrls = [...(item.photoUrls || []), ...uploadedUrls];
         await item.save();
+
+        try {
+            await syncFromInstallationActivity(item);
+        } catch (syncErr) {
+            console.warn("Defect/snag sync on upload failed:", syncErr?.message || syncErr);
+        }
 
         return res.status(200).json({
             success: true,

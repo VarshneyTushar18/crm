@@ -25,6 +25,7 @@ const { validateStageManualFields } = require("../utils/stageManualFields");
 const { processMilestoneBilling } = require("../utils/milestoneBilling");
 const { notifyCustomer } = require("../services/notificationService");
 const { syncApprovedModuleReviewsToWorkflow } = require("../utils/syncModuleReviewWorkflow");
+const { ensureSiteForJob } = require("../utils/linkJobSite");
 
 const MANUAL_PROGRESS_VALUES = [20, 40, 60, 80, 100];
 
@@ -156,6 +157,10 @@ exports.createJob = async (req, res) => {
       leadId: payload.leadId || created.leadId,
     });
 
+    if (created.site || created.siteId) {
+      await ensureSiteForJob(created);
+    }
+
     const refreshed = await Job.findById(created._id);
 
     return res.status(201).json({
@@ -281,6 +286,10 @@ exports.updateJob = async (req, res) => {
     // Save to trigger pre-save hooks for systemState calculation
     const updated = await job.save();
 
+    if (payload.site !== undefined || payload.siteId !== undefined) {
+      await ensureSiteForJob(updated, payload.site);
+    }
+
     for (const stageKey of seStagesToSubmit) {
       await markModuleCompleteForReview(
         updated._id,
@@ -290,7 +299,9 @@ exports.updateJob = async (req, res) => {
     }
 
     const savedJob =
-      seStagesToSubmit.length > 0
+      seStagesToSubmit.length > 0 ||
+      payload.site !== undefined ||
+      payload.siteId !== undefined
         ? await Job.findById(updated._id)
         : updated;
 
