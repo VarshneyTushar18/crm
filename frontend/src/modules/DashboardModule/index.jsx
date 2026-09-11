@@ -14,8 +14,9 @@ import {
   Progress,
   Empty,
   Spin,
+  Dropdown,
 } from 'antd';
-import { ReloadOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { ReloadOutlined, ClockCircleOutlined, DownOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import useLanguage from '@/locale/useLanguage';
 import { useMoney } from '@/settings';
@@ -86,6 +87,115 @@ function BarList({ items = [], loading, valueKey = 'count', labelKey = 'label', 
                 }}
               />
             </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const WORKFLOW_STAGE_VISIBLE_JOBS = 5;
+
+function WorkflowStageJobsList({ items = [], loading, onOpenJob, color = '#1677ff' }) {
+  if (loading) {
+    return (
+      <div style={{ padding: 24, textAlign: 'center' }}>
+        <Spin />
+      </div>
+    );
+  }
+  if (!items.length) {
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No data" />;
+  }
+
+  const max = Math.max(...items.map((item) => Number(item.count || 0)), 1);
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      {items.map((stage) => {
+        const jobs = Array.isArray(stage.jobs) ? stage.jobs : [];
+        const visibleJobs = jobs.slice(0, WORKFLOW_STAGE_VISIBLE_JOBS);
+        const overflowJobs = jobs.slice(WORKFLOW_STAGE_VISIBLE_JOBS);
+        const count = Number(stage.count || jobs.length || 0);
+
+        const overflowMenuItems = overflowJobs.map((job) => ({
+          key: String(job._id),
+          label: (
+            <div style={{ minWidth: 180 }}>
+              <div style={{ fontWeight: 600 }}>{job.jobId || 'Job'}</div>
+              <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>
+                {job.customer || 'No customer'}
+              </div>
+            </div>
+          ),
+          onClick: () => onOpenJob?.(job._id),
+        }));
+
+        return (
+          <div key={stage.key || stage.label}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={{ fontSize: 13 }}>{stage.label}</Text>
+              <Text strong>{count}</Text>
+            </div>
+            <div
+              style={{
+                height: 8,
+                background: '#f0f0f0',
+                borderRadius: 6,
+                overflow: 'hidden',
+                marginBottom: 8,
+              }}
+            >
+              <div
+                style={{
+                  width: `${Math.round((count / max) * 100)}%`,
+                  height: '100%',
+                  background: color,
+                }}
+              />
+            </div>
+
+            {jobs.length === 0 ? (
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                No jobs in this stage
+              </Text>
+            ) : (
+              <div style={{ display: 'grid', gap: 4 }}>
+                {visibleJobs.map((job) => (
+                  <Button
+                    key={String(job._id)}
+                    type="link"
+                    size="small"
+                    onClick={() => onOpenJob?.(job._id)}
+                    style={{
+                      padding: '2px 0',
+                      height: 'auto',
+                      justifyContent: 'flex-start',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span>
+                      <Text strong style={{ fontSize: 12 }}>
+                        {job.jobId || 'Job'}
+                      </Text>
+                      {job.customer ? (
+                        <Text type="secondary" style={{ fontSize: 12, marginLeft: 6 }}>
+                          — {job.customer}
+                        </Text>
+                      ) : null}
+                    </span>
+                  </Button>
+                ))}
+
+                {overflowJobs.length > 0 ? (
+                  <Dropdown menu={{ items: overflowMenuItems }} trigger={['click']}>
+                    <Button type="link" size="small" style={{ padding: '2px 0', height: 'auto' }}>
+                      +{overflowJobs.length} more <DownOutlined style={{ fontSize: 10 }} />
+                    </Button>
+                  </Dropdown>
+                ) : null}
+              </div>
+            )}
           </div>
         );
       })}
@@ -529,7 +639,12 @@ export default function DashboardModule() {
                 <Title level={5} style={{ marginTop: 0 }}>
                   Jobs by current workflow stage
                 </Title>
-                <BarList items={ops.workflowStages} loading={overviewLoading} color="#1677ff" />
+                <WorkflowStageJobsList
+                  items={ops.workflowStages}
+                  loading={overviewLoading}
+                  color="#1677ff"
+                  onOpenJob={(jobId) => navigate(`/admin/job/${jobId}`)}
+                />
               </div>
             </Col>
             <Col xs={24} lg={12}>
@@ -776,7 +891,7 @@ export default function DashboardModule() {
       <div className="space30" />
 
       <Title level={4} className="dashboard-section-title">
-        Commercial
+        Sales
       </Title>
       <Row gutter={[24, 24]} className="dashboard-row">
         <SummaryCard

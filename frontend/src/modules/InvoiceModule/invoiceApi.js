@@ -60,9 +60,9 @@ export const invoiceApi = {
     return request.list({ entity: 'payment', options });
   },
 
-  // Get payment modes
+  // Get payment modes (full list for Record Payment dropdown)
   getPaymentModes: async () => {
-    return request.get({ entity: 'paymentmode/list' });
+    return request.listAll({ entity: 'paymentmode' });
   },
 
   // Verify customer payment notification

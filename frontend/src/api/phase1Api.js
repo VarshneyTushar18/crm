@@ -1,5 +1,6 @@
 import axios from "axios";
 import { API_BASE_URL, multipartAuthHeaders } from "@/config/serverApiConfig";
+import { attachAuthExpiryInterceptor } from "@/utils/sessionExpiry";
 
 const client = axios.create({ baseURL: `${API_BASE_URL}/` });
 
@@ -8,6 +9,8 @@ client.interceptors.request.use((config) => {
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+
+attachAuthExpiryInterceptor(client);
 
 export const getLeadSources = () => client.get("settings/lead-sources");
 export const saveLeadSources = (sources) =>

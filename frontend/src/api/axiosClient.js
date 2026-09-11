@@ -1,5 +1,6 @@
 import axios from "axios";
 import { BASE_URL } from '@/config/serverApiConfig';
+import { attachAuthExpiryInterceptor } from '@/utils/sessionExpiry';
 
 const axiosClient = axios.create({
   baseURL: BASE_URL,
@@ -11,5 +12,7 @@ axiosClient.interceptors.request.use((config) => {
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+
+attachAuthExpiryInterceptor(axiosClient);
 
 export default axiosClient;

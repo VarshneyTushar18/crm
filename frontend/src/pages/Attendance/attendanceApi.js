@@ -1,5 +1,6 @@
 import axios from "axios";
 import { API_BASE_URL } from '@/config/serverApiConfig';
+import { attachAuthExpiryInterceptor } from "@/utils/sessionExpiry";
 
 const axiosInstance = axios.create({
   baseURL: `${API_BASE_URL}/`,
@@ -16,6 +17,8 @@ axiosInstance.interceptors.request.use(
   },
   (error) => Promise.reject(error)
 );
+
+attachAuthExpiryInterceptor(axiosInstance);
 
 export const getEmployees = async () => {
   const res = await axiosInstance.get("employee/list");

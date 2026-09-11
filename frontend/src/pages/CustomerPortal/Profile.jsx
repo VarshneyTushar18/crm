@@ -3,12 +3,14 @@ import { Card, Form, Input, Button, message, Space, Descriptions, Divider, Typog
 import { useNavigate } from "react-router-dom";
 import axiosClient from "../../api/axiosClient";
 import PasswordModal from "./PasswordModal";
+import { useCustomerAuth } from "../../context/CustomerAuthContext";
 
 const { Text } = Typography;
 
 export default function Profile() {
   const [form] = Form.useForm();
   const navigate = useNavigate();
+  const { logout } = useCustomerAuth();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -67,9 +69,7 @@ export default function Profile() {
 
 
   const onLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("role");
-    localStorage.removeItem("user");
+    logout();
     navigate("/portal/login", { replace: true });
   };
 

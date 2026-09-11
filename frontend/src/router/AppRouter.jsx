@@ -28,6 +28,7 @@ import MaterialPurchase from "../pages/MaterialPurchase";
 import Fabrication from "../pages/Fabrication";
 import QC from "../pages/QC";
 import Installation from "../pages/Installation";
+import DefectsSnags from "../pages/DefectsSnags";
 import Attendance from "../pages/Attendance";
 import LeavePage from "../pages/Leave";
 
@@ -156,6 +157,7 @@ export default function AppRouter() {
 
           {/* ✅ Execution */}
           <Route path="installation" element={<Installation />} />
+          <Route path="defects-snags" element={<DefectsSnags />} />
 
           {/* ✅ Other admin pages */}
           <Route path="attendance" element={<Attendance />} />

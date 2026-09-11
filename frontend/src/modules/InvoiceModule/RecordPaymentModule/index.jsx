@@ -5,6 +5,8 @@ import { ErpLayout } from '@/layout';
 import useLanguage from '@/locale/useLanguage';
 import { invoiceApi } from '../invoiceApi';
 import dayjs from 'dayjs';
+import { sortCanonicalPaymentModes } from '@/utils/paymentModes';
+import { INVOICE_CURRENCY_OPTIONS } from '@/utils/invoiceCurrencies';
 
 const { Option } = Select;
 
@@ -50,7 +52,15 @@ export default function RecordPaymentModule() {
     try {
       const response = await invoiceApi.getPaymentModes();
       if (response.success) {
-        setPaymentModes(response.result || []);
+        const modes = sortCanonicalPaymentModes(response.result || []);
+        setPaymentModes(modes);
+        const defaultMode =
+          modes.find((mode) => mode.isDefault) ||
+          modes.find((mode) => mode.name === 'Bank Transfer') ||
+          modes[0];
+        if (defaultMode) {
+          form.setFieldsValue({ paymentMode: defaultMode._id });
+        }
       }
     } catch (error) {
       console.error('Failed to load payment modes');
@@ -164,21 +174,20 @@ export default function RecordPaymentModule() {
             rules={[{ required: true, message: 'Please select currency' }]}
           >
             <Select>
-              <Option value="INR">INR</Option>
-              <Option value="USD">USD</Option>
-              <Option value="EUR">EUR</Option>
-              <Option value="GBP">GBP</Option>
-              <Option value="AUD">AUD</Option>
-              <Option value="CAD">CAD</Option>
+              {INVOICE_CURRENCY_OPTIONS.map((code) => (
+                <Option key={code} value={code}>
+                  {code}
+                </Option>
+              ))}
             </Select>
           </Form.Item>
 
           <Form.Item
             name="paymentMode"
-            label="Payment Method"
-            rules={[{ required: true, message: 'Please select payment method' }]}
+            label="Payment Mode"
+            rules={[{ required: true, message: 'Please select payment mode' }]}
           >
-            <Select placeholder="Select payment method">
+            <Select placeholder="Select payment mode">
               {paymentModes.map(mode => (
                 <Option key={mode._id} value={mode._id}>
                   {mode.name}

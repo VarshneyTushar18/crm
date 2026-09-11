@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ErpLayout } from '@/layout';
 import useLanguage from '@/locale/useLanguage';
 import { invoiceApi } from '../invoiceApi';
+import { INVOICE_CURRENCY_OPTIONS } from '@/utils/invoiceCurrencies';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -286,10 +287,11 @@ export default function CreateInvoiceModule() {
 
           <Form.Item name="currency" label={translate('Currency')}>
             <Select>
-              <Option value="USD">USD</Option>
-              <Option value="EUR">EUR</Option>
-              <Option value="GBP">GBP</Option>
-              <Option value="INR">INR</Option>
+              {INVOICE_CURRENCY_OPTIONS.map((code) => (
+                <Option key={code} value={code}>
+                  {code}
+                </Option>
+              ))}
             </Select>
           </Form.Item>
 

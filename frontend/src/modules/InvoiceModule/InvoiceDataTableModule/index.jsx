@@ -80,6 +80,14 @@ export default function InvoiceDataTableModule({ config }) {
       displayLabels: ["jobId"],
       searchFields: "jobId",
     },
+    statusFilterOptions: ["Draft", "Issued", "Partially Paid", "Paid", "Overdue"],
+    statusFilterColors: {
+      Draft: "orange",
+      Issued: "blue",
+      "Partially Paid": "purple",
+      Paid: "green",
+      Overdue: "red",
+    },
     deleteModalLabels: ["number", "job.jobId"],
     basePath: "/admin",
   };

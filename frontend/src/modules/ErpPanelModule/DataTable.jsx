@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   EyeOutlined,
   EditOutlined,
@@ -9,7 +9,7 @@ import {
   EllipsisOutlined,
   ArrowLeftOutlined,
 } from "@ant-design/icons";
-import { Dropdown, Table, Button, message } from "antd";
+import { Dropdown, Table, Button, message, Select, Tag } from "antd";
 import { PageHeader } from "@ant-design/pro-layout";
 
 import AutoCompleteAsync from "@/components/AutoCompleteAsync";
@@ -20,6 +20,8 @@ import { selectListItems } from "@/redux/erp/selectors";
 import { useErpContext } from "@/context/erp";
 import { API_BASE_URL } from "../../config/serverApiConfig";
 import { useNavigate } from "react-router-dom";
+
+const { Option } = Select;
 
 function joinPath(...parts) {
   return parts
@@ -95,9 +97,12 @@ export default function DataTable({ config, extra = [] }) {
     searchConfig,
     basePath = "/admin",
     DATATABLE_TITLE,
+    statusFilterOptions,
+    statusFilterColors = {},
   } = config;
 
   const e = String(entity || "").toLowerCase();
+  const hasStatusFilter = Array.isArray(statusFilterOptions) && statusFilterOptions.length > 0;
 
   const { result: listResult, isLoading: listIsLoading } = useSelector(selectListItems);
   const { pagination = {}, items: dataSource = [] } = listResult || {};
@@ -107,6 +112,32 @@ export default function DataTable({ config, extra = [] }) {
 
   const navigate = useNavigate();
   const dispatch = useDispatch();
+
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [jobFilterId, setJobFilterId] = useState(null);
+
+  const buildListOptions = (overrides = {}) => {
+    const options = {
+      page: 1,
+      items: pagination?.pageSize || 10,
+      ...overrides,
+    };
+
+    if (hasStatusFilter && statusFilter && statusFilter !== "All") {
+      options.status = statusFilter;
+    }
+
+    if (jobFilterId) {
+      options.filter = searchConfig?.entity || "job";
+      options.equal = String(jobFilterId);
+    }
+
+    return options;
+  };
+
+  const loadList = (overrides = {}) => {
+    dispatch(erp.list({ entity: e, options: buildListOptions(overrides) }));
+  };
 
   const menuItems = [
     { label: translate("Show"), key: "read", icon: <EyeOutlined /> },
@@ -197,28 +228,41 @@ export default function DataTable({ config, extra = [] }) {
   ];
 
   const handelDataTableLoad = (paginationObj) => {
-    const options = {
+    loadList({
       page: paginationObj?.current || 1,
       items: paginationObj?.pageSize || 10,
-    };
-    dispatch(erp.list({ entity: e, options }));
+    });
   };
 
   const dispatcher = () => {
-    const options = { page: 1, items: 10 };
-    dispatch(erp.list({ entity: e, options }));
+    loadList({ page: 1 });
   };
 
   useEffect(() => {
-    dispatcher();
+    loadList({ page: 1 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [statusFilter]);
 
   const filterTable = (value, option) => {
     try {
-      // clear
+      const pageSize = pagination?.pageSize || 10;
+      const statusOptions =
+        hasStatusFilter && statusFilter && statusFilter !== "All"
+          ? { status: statusFilter }
+          : {};
+
       if (!value && !option) {
-        dispatch(erp.list({ entity: e, options: { page: 1, items: 10 } }));
+        setJobFilterId(null);
+        dispatch(
+          erp.list({
+            entity: e,
+            options: {
+              page: 1,
+              items: pageSize,
+              ...statusOptions,
+            },
+          })
+        );
         return;
       }
 
@@ -228,26 +272,72 @@ export default function DataTable({ config, extra = [] }) {
           : value?.value || value?._id || value?.name || option?.value || "";
 
       if (!equal) {
-        dispatch(erp.list({ entity: e, options: { page: 1, items: 10 } }));
+        setJobFilterId(null);
+        dispatch(
+          erp.list({
+            entity: e,
+            options: {
+              page: 1,
+              items: pageSize,
+              ...statusOptions,
+            },
+          })
+        );
         return;
       }
 
+      setJobFilterId(String(equal));
       dispatch(
         erp.list({
           entity: e,
           options: {
+            page: 1,
+            items: pageSize,
             equal: String(equal),
             filter: searchConfig?.entity,
-            page: 1,
-            items: 10,
+            ...statusOptions,
           },
         })
       );
     } catch (err) {
       console.error("filterTable error:", err);
-      dispatch(erp.list({ entity: e, options: { page: 1, items: 10 } }));
+      dispatcher();
     }
   };
+
+  const headerExtra = [
+    hasStatusFilter && (
+      <Select
+        key="erp-status-filter"
+        value={statusFilter}
+        style={{ width: 180 }}
+        onChange={setStatusFilter}
+        placeholder="Filter by status"
+      >
+        <Option value="All">All Statuses</Option>
+        {statusFilterOptions.map((status) => (
+          <Option key={status} value={status}>
+            {statusFilterColors[status] ? (
+              <Tag color={statusFilterColors[status]}>{status}</Tag>
+            ) : (
+              status
+            )}
+          </Option>
+        ))}
+      </Select>
+    ),
+    <AutoCompleteAsync
+      key="erp-search"
+      entity={searchConfig?.entity}
+      displayLabels={searchConfig?.displayLabels || ["name"]}
+      searchFields={searchConfig?.searchFields || "name"}
+      onChange={filterTable}
+    />,
+    <Button onClick={dispatcher} key="erp-refresh" icon={<RedoOutlined />}>
+      {translate("Refresh")}
+    </Button>,
+    !disableAdd && <AddNewItem config={config} key="erp-add" />,
+  ].filter(Boolean);
 
   return (
     <>
@@ -256,19 +346,7 @@ export default function DataTable({ config, extra = [] }) {
         ghost={true}
         onBack={() => window.history.back()}
         backIcon={<ArrowLeftOutlined />}
-        extra={[
-          <AutoCompleteAsync
-            key="erp-search"
-            entity={searchConfig?.entity}
-            displayLabels={["name"]}
-            searchFields={"name"}
-            onChange={filterTable}
-          />,
-          <Button onClick={dispatcher} key="erp-refresh" icon={<RedoOutlined />}>
-            {translate("Refresh")}
-          </Button>,
-          !disableAdd && <AddNewItem config={config} key="erp-add" />,
-        ]}
+        extra={headerExtra}
         style={{ padding: "20px 0px" }}
       />
 

@@ -4,6 +4,11 @@ import JobForm from "./JobForm";
 import { getJobs, createJob, deleteJob, updateJob } from "./jobApi";
 import { useNavigate } from "react-router-dom";
 import { useJob } from "../../context/JobContext";
+import {
+  STAGE_LABELS,
+  getTimelineStageKeys,
+  isStageComplete,
+} from "@/config/workflowConfig";
 
 const { Option } = Select;
 
@@ -16,7 +21,14 @@ const STATE_COLORS = {
   Closed: "default",
 };
 
+const STAGE_KEYS = getTimelineStageKeys();
 
+function getCurrentWorkflowStage(job) {
+  for (const key of STAGE_KEYS) {
+    if (!isStageComplete(job, key)) return key;
+  }
+  return "jobCompletion";
+}
 
 export default function Jobs() {
   const [jobs, setJobs] = useState([]);
@@ -26,11 +38,10 @@ export default function Jobs() {
   const [editData, setEditData] = useState(null);
 
   const [stateFilter, setStateFilter] = useState("All");
+  const [stageFilter, setStageFilter] = useState("All");
 
   const { pinJob } = useJob();
   const navigate = useNavigate();
-
-
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -49,8 +60,6 @@ export default function Jobs() {
   useEffect(() => {
     fetchJobs();
   }, []);
-
-
 
   const setJobContext = (job) => {
     const jobObjectId = job?._id;
@@ -84,9 +93,12 @@ export default function Jobs() {
 
   const filteredJobs = useMemo(() => {
     return jobs.filter((j) => {
-      return stateFilter === "All" || j.systemState === stateFilter;
+      const matchState = stateFilter === "All" || j.systemState === stateFilter;
+      const matchStage =
+        stageFilter === "All" || getCurrentWorkflowStage(j) === stageFilter;
+      return matchState && matchStage;
     });
-  }, [jobs, stateFilter]);
+  }, [jobs, stateFilter, stageFilter]);
 
   const columns = [
     {
@@ -180,9 +192,25 @@ export default function Jobs() {
           ))}
         </Select>
 
+        <Select
+          value={stageFilter}
+          style={{ width: 220 }}
+          onChange={setStageFilter}
+          showSearch
+          optionFilterProp="children"
+        >
+          <Option value="All">All Stages</Option>
+          {STAGE_KEYS.map((key) => (
+            <Option key={key} value={key}>
+              {STAGE_LABELS[key] || key}
+            </Option>
+          ))}
+        </Select>
+
         <Button
           onClick={() => {
             setStateFilter("All");
+            setStageFilter("All");
           }}
         >
           Reset

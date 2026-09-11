@@ -52,6 +52,7 @@ import {
   finalizeJobCompletion,
   uploadInstallationActivityFiles,
 } from "./installationApi";
+import { getOpenDefectSnagCount } from "../DefectsSnags/defectSnagApi";
 import {
   getJobCardsByJob,
   createJobCard,
@@ -73,6 +74,13 @@ const normFile = (e) => {
 };
 
 const ACTIVITY_STATUSES = ["Pending", "In Progress", "Completed", "Hold", "Snag"];
+const ACTIVITY_STATUS_LABELS = {
+  Pending: "Pending",
+  "In Progress": "In Progress",
+  Completed: "Completed",
+  Hold: "Hold",
+  Snag: "Defect / Snag",
+};
 const JOB_CARD_STATUSES = ["Pending", "Assigned", "In Progress", "Completed", "On Hold"];
 
 const JOB_CARD_STATUS_COLORS = {
@@ -162,6 +170,7 @@ export default function Installation() {
   const [editingJobCard, setEditingJobCard] = useState(null);
   const [hoursModalOpen, setHoursModalOpen] = useState(false);
   const [selectedHoursItem, setSelectedHoursItem] = useState(null);
+  const [openDefectCount, setOpenDefectCount] = useState(0);
 
   const [activityForm] = Form.useForm();
   const [summaryForm] = Form.useForm();
@@ -206,6 +215,8 @@ export default function Installation() {
       loadInstallationData(selectedJob._id);
     } else {
       setItems([]);
+      setJobCards([]);
+      setOpenDefectCount(0);
       resetSummary();
     }
   }, [selectedJob]);
@@ -280,15 +291,17 @@ export default function Installation() {
     try {
       setLoading(true);
 
-      const [activityData, summaryData, cardData] = await Promise.all([
+      const [activityData, summaryData, cardData, openDefects] = await Promise.all([
         getInstallationItems(jobId),
         getInstallationSummary(jobId).catch(() => ({})),
         getJobCardsByJob(jobId).catch(() => []),
+        getOpenDefectSnagCount(jobId).catch(() => ({ count: 0 })),
       ]);
 
       const normalizedItems = Array.isArray(activityData) ? activityData : [];
       setItems(normalizedItems);
       setJobCards(Array.isArray(cardData) ? cardData : []);
+      setOpenDefectCount(Number(openDefects?.count || 0));
 
       const normalizedSummary = {
         installationScheduledDate: summaryData?.installationScheduledDate
@@ -371,8 +384,15 @@ export default function Installation() {
   const canMarkInstallationComplete = useMemo(() => {
     if (!selectedJob?._id) return false;
     if (!items.length) return false;
+    if (openDefectCount > 0) return false;
     return items.every((item) => item.status === "Completed");
-  }, [items, selectedJob]);
+  }, [items, selectedJob, openDefectCount]);
+
+  const canFinalizeSignOff = useMemo(() => {
+    if (!selectedJob?._id) return false;
+    if (openDefectCount > 0) return false;
+    return true;
+  }, [selectedJob, openDefectCount]);
 
   const forceJobStageToInstallation = async (jobId) => {
     try {
@@ -755,6 +775,12 @@ export default function Installation() {
     }
 
     if (!canMarkInstallationComplete) {
+      if (openDefectCount > 0) {
+        message.warning(
+          `Clear all defects & snags before completion (${openDefectCount} still open)`
+        );
+        return;
+      }
       message.warning("All installation activities must be Completed first");
       return;
     }
@@ -779,6 +805,13 @@ export default function Installation() {
 
       if (!selectedJob?._id) {
         message.warning("Please select a job first");
+        return;
+      }
+
+      if (openDefectCount > 0) {
+        message.warning(
+          `Clear all defects & snags before sign-off (${openDefectCount} still open)`
+        );
         return;
       }
 
@@ -926,7 +959,9 @@ export default function Installation() {
       width: 150,
       render: (status, record) => (
         <Space direction="vertical" size={4}>
-          <Tag color={STATUS_COLORS[status] || "default"}>{status || "—"}</Tag>
+          <Tag color={STATUS_COLORS[status] || "default"}>
+            {ACTIVITY_STATUS_LABELS[status] || status || "—"}
+          </Tag>
           {isActivityLocked(record, sortedItems) ? (
             <Tag color="orange">Awaiting prior step</Tag>
           ) : null}
@@ -934,7 +969,7 @@ export default function Installation() {
       ),
     },
     {
-      title: "Snag / Issue",
+      title: "Defect / Snag",
       dataIndex: "snagIssue",
       key: "snagIssue",
       width: 180,
@@ -1033,7 +1068,7 @@ export default function Installation() {
                   type="primary"
                   icon={<FileDoneOutlined />}
                   onClick={openCompletionModal}
-                  disabled={!selectedJob}
+                  disabled={!selectedJob || !canFinalizeSignOff}
                 >
                   Job Completion & Customer Sign-Off
                 </Button>
@@ -1043,6 +1078,14 @@ export default function Installation() {
             <div style={{ color: "#666" }}>
               Only QC-approved / Finishing-completed jobs are available here.
               Installation activities run in sequence — complete each step before starting the next.
+              {openDefectCount > 0 ? (
+                <Alert
+                  style={{ marginTop: 12 }}
+                  type="warning"
+                  showIcon
+                  message={`${openDefectCount} open defect(s) / snag(s) — clear them under Execution → Defects & Snags before completion / sign-off.`}
+                />
+              ) : null}
             </div>
           </Card>
         </Col>
@@ -1083,7 +1126,8 @@ export default function Installation() {
                   Installation Status
                 </div>
                 <Tag color={STATUS_COLORS[currentInstallationStatus] || "default"}>
-                  {currentInstallationStatus}
+                  {ACTIVITY_STATUS_LABELS[currentInstallationStatus] ||
+                    currentInstallationStatus}
                 </Tag>
               </Col>
 
@@ -1456,7 +1500,7 @@ export default function Installation() {
                         ["In Progress", "Completed"].includes(status)
                       }
                     >
-                      {status}
+                      {ACTIVITY_STATUS_LABELS[status] || status}
                     </Option>
                   ))}
                 </Select>
@@ -1464,8 +1508,8 @@ export default function Installation() {
             </Col>
 
             <Col xs={24}>
-              <Form.Item label="Snag / Issue" name="snagIssue">
-                <Input placeholder="Enter snag / issue if any" />
+              <Form.Item label="Defect / Snag" name="snagIssue">
+                <Input placeholder="Enter defect / snag details if any" />
               </Form.Item>
             </Col>
 

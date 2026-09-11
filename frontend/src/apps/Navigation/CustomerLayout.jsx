@@ -32,6 +32,7 @@ import { API_BASE_URL } from '@/config/serverApiConfig';
 import BrandLogo from "@/components/BrandLogo";
 import useResponsive from "@/hooks/useResponsive";
 import NotificationBell from "@/components/NotificationBell";
+import { useCustomerAuth } from "@/context/CustomerAuthContext";
 
 const { Sider, Header, Content } = Layout;
 const { Text } = Typography;
@@ -42,6 +43,7 @@ export default function CustomerLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isMobile } = useResponsive();
+  const { logout } = useCustomerAuth();
 
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -90,11 +92,12 @@ export default function CustomerLayout() {
   }, [location.pathname]);
 
   const onLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    localStorage.removeItem("role");
-    localStorage.removeItem("customer");
+    logout();
     navigate("/portal/login", { replace: true });
+  };
+
+  const onProfileMenuClick = ({ key }) => {
+    if (key === "logout") onLogout();
   };
 
   const menuItems = [
@@ -149,7 +152,8 @@ export default function CustomerLayout() {
     {
       key: "logout",
       icon: <LogoutOutlined />,
-      label: <span onClick={onLogout}>Logout</span>,
+      label: "Logout",
+      danger: true,
     },
   ];
 
@@ -268,7 +272,11 @@ export default function CustomerLayout() {
             <Text strong style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {customerName}
             </Text>
-            <Dropdown menu={{ items: profileMenuItems }} placement="bottomRight" trigger={["click"]}>
+            <Dropdown
+              menu={{ items: profileMenuItems, onClick: onProfileMenuClick }}
+              placement="bottomRight"
+              trigger={["click"]}
+            >
               <Button type="text" icon={<UserOutlined />} />
             </Dropdown>
             <NotificationBell />
@@ -294,7 +302,7 @@ export default function CustomerLayout() {
             <Space size={12}>
               <NotificationBell />
               <Dropdown
-                menu={{ items: profileMenuItems }}
+                menu={{ items: profileMenuItems, onClick: onProfileMenuClick }}
                 placement="bottomRight"
                 trigger={["click"]}
               >

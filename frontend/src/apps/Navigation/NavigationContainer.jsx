@@ -36,6 +36,7 @@ import {
   CalendarOutlined,
   AuditOutlined,
   MessageOutlined,
+  BugOutlined,
 } from "@ant-design/icons";
 
 const { Sider } = Layout;
@@ -78,6 +79,11 @@ const getSiteEngineerItems = (go) => [
     key: "installation",
     icon: <ShopOutlined />,
     label: <Link to={go("/installation")}>Installation</Link>,
+  },
+  {
+    key: "defects-snags",
+    icon: <BugOutlined />,
+    label: <Link to={go("/defects-snags")}>Defects & Snags</Link>,
   },
   {
     key: "worker-tasks",
@@ -277,6 +283,11 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
             icon: <ShopOutlined />,
             label: <Link to={goWithJob("/installation")}>Installation</Link>,
           },
+          {
+            key: "defects-snags",
+            icon: <BugOutlined />,
+            label: <Link to={goWithJob("/defects-snags")}>Defects & Snags</Link>,
+          },
         ],
       },
       {
@@ -399,6 +410,7 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
     fabrication: "production-group",
     qc: "production-group",
     installation: "execution-group",
+    "defects-snags": "execution-group",
     customer: "business-group",
     "contact-requests": "business-group",
     "notification-receipts": "business-group",

@@ -87,6 +87,13 @@ export const customerGetInvoiceById = async (id) => {
   return res.data?.result;
 };
 
+export const customerGetPaymentModes = async () => {
+  const res = await axios.get(`${API_BASE}/customer/payment-modes`, {
+    headers: authHeaders(),
+  });
+  return res.data?.result || [];
+};
+
 export const customerNotifyPayment = async (id, data) => {
   const res = await axios.post(`${API_BASE}/customer/invoice/notify/${id}`, data, {
     headers: authHeaders(),

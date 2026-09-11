@@ -22,6 +22,8 @@ import { CustomerAuthProvider } from "@/context/CustomerAuthContext";
 import "antd/dist/reset.css";
 import "./style/app.css";
 
+import { attachAuthExpiryInterceptor } from "@/utils/sessionExpiry";
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
@@ -55,3 +57,5 @@ axios.interceptors.request.use((config) => {
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+
+attachAuthExpiryInterceptor(axios);

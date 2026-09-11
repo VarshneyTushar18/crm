@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Badge,
   Button,
+  Calendar,
   Card,
   Col,
   DatePicker,
@@ -53,6 +55,14 @@ const DEFAULT_TEAMS = [
   "Site Crew",
 ];
 
+const STATUS_BADGE = {
+  Scheduled: "processing",
+  "In Progress": "warning",
+  Completed: "success",
+  Cancelled: "default",
+  Delayed: "error",
+};
+
 const formatAssignees = (record) => {
   const people = Array.isArray(record?.assignees)
     ? record.assignees.map((a) => a.assigneeName).filter(Boolean)
@@ -66,15 +76,17 @@ const formatTeams = (record) => {
   return teams.length ? teams.join(", ") : "—";
 };
 
+const sameDay = (a, b) => dayjs(a).isSame(dayjs(b), "day");
+
 export default function Scheduling() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { activeJobId, setActiveJobId } = useJob();
+  const { setActiveJobId } = useJob();
 
   const [jobs, setJobs] = useState([]);
   const [jobData, setJobData] = useState(null);
   const [items, setItems] = useState([]);
-  const [calendarItems, setCalendarItems] = useState([]);
+  const [jobAssignmentCount, setJobAssignmentCount] = useState(0);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -85,14 +97,35 @@ export default function Scheduling() {
   const [completing, setCompleting] = useState(false);
   const [form] = Form.useForm();
   const [view, setView] = useState("list");
-  const [range, setRange] = useState([dayjs().startOf("week"), dayjs().endOf("week")]);
+  const [dateFrom, setDateFrom] = useState(null);
+  const [dateTo, setDateTo] = useState(null);
+  const [statusFilter, setStatusFilter] = useState(undefined);
+  const [workerFilter, setWorkerFilter] = useState(undefined);
+  const [teamFilter, setTeamFilter] = useState(undefined);
+  const [calendarValue, setCalendarValue] = useState(dayjs());
 
   const queryJobId = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return params.get("jobId");
   }, [location.search]);
 
-  const jobId = queryJobId || activeJobId || localStorage.getItem("activeJobId");
+  // Job filter is URL-only — do not inherit activeJobId / localStorage by default
+  const jobId = queryJobId || undefined;
+
+  const jobLabelById = useMemo(() => {
+    const map = {};
+    jobs.forEach((job) => {
+      map[job._id] = `${job.jobId || job._id}${job.customer ? ` - ${job.customer}` : ""}`;
+    });
+    return map;
+  }, [jobs]);
+
+  const teamOptions = useMemo(() => {
+    const fromItems = items.flatMap((item) =>
+      Array.isArray(item.teams) ? item.teams.filter(Boolean) : []
+    );
+    return [...new Set([...DEFAULT_TEAMS, ...fromItems])];
+  }, [items]);
 
   const fetchJobs = async () => {
     const result = await getJobs();
@@ -109,14 +142,18 @@ export default function Scheduling() {
     }
   };
 
-  const fetchItems = async (id = jobId) => {
-    if (!id) {
-      setItems([]);
-      return;
-    }
+  const fetchSchedule = async () => {
     setLoading(true);
     try {
-      const data = await getScheduleByJob(id);
+      const params = {
+        jobId: jobId || undefined,
+        status: statusFilter || undefined,
+        assigneeId: workerFilter || undefined,
+        team: teamFilter || undefined,
+      };
+      if (dateFrom) params.from = dateFrom.startOf("day").toISOString();
+      if (dateTo) params.to = dateTo.endOf("day").toISOString();
+      const data = await getScheduleCalendar(params);
       setItems(Array.isArray(data) ? data : []);
     } catch (err) {
       message.error(err?.response?.data?.message || "Failed to load schedule");
@@ -126,17 +163,24 @@ export default function Scheduling() {
     }
   };
 
-  const fetchCalendar = async () => {
+  const refreshJobScopedMeta = async (id = jobId) => {
+    if (!id) {
+      setJobData(null);
+      setJobAssignmentCount(0);
+      return;
+    }
     try {
-      const [from, to] = range || [];
-      const data = await getScheduleCalendar({
-        from: from?.toISOString(),
-        to: to?.toISOString(),
-        jobId: jobId || undefined,
-      });
-      setCalendarItems(Array.isArray(data) ? data : []);
+      const [jobList, jobItems] = await Promise.all([getJobs(), getScheduleByJob(id)]);
+      const list = Array.isArray(jobList) ? jobList : [];
+      setJobs(list);
+      const matched = list.find((j) => j._id === id);
+      if (matched) {
+        setJobData(matched);
+        setActiveJobId(matched._id);
+      }
+      setJobAssignmentCount(Array.isArray(jobItems) ? jobItems.length : 0);
     } catch {
-      setCalendarItems([]);
+      setJobAssignmentCount(0);
     }
   };
 
@@ -146,18 +190,16 @@ export default function Scheduling() {
   }, []);
 
   useEffect(() => {
-    if (!jobId) return;
-    const matched = jobs.find((j) => j._id === jobId);
-    if (matched) {
-      setJobData(matched);
-      setActiveJobId(matched._id);
-    }
-    fetchItems(jobId);
-  }, [jobId, jobs.length]);
+    fetchSchedule();
+  }, [dateFrom, dateTo, jobId, statusFilter, workerFilter, teamFilter]);
 
   useEffect(() => {
-    if (view === "calendar") fetchCalendar();
-  }, [view, range, jobId]);
+    refreshJobScopedMeta(jobId);
+  }, [jobId]);
+
+  useEffect(() => {
+    if (dateFrom) setCalendarValue(dateFrom);
+  }, [dateFrom]);
 
   const openCreate = () => {
     if (!jobId) {
@@ -285,8 +327,8 @@ export default function Scheduling() {
         message.success("Assignment scheduled");
       }
       setOpen(false);
-      await fetchItems(jobId);
-      if (view === "calendar") await fetchCalendar();
+      await fetchSchedule();
+      await refreshJobScopedMeta(jobId);
     } catch (err) {
       message.error(err?.response?.data?.message || "Save failed");
     }
@@ -296,8 +338,8 @@ export default function Scheduling() {
     try {
       await deleteScheduleAssignment(record._id);
       message.success("Assignment deleted");
-      await fetchItems(jobId);
-      if (view === "calendar") await fetchCalendar();
+      await fetchSchedule();
+      await refreshJobScopedMeta(jobId);
     } catch (err) {
       message.error(err?.response?.data?.message || "Delete failed");
     }
@@ -312,7 +354,7 @@ export default function Scheduling() {
       message.warning("Select a job first");
       return;
     }
-    if (!items.length) {
+    if (!jobAssignmentCount) {
       message.warning("Add at least one schedule assignment first");
       return;
     }
@@ -320,10 +362,8 @@ export default function Scheduling() {
       setCompleting(true);
       await completeSchedulingForJob(jobId);
       message.success("Scheduling sent to site engineer for approval");
-      await fetchItems(jobId);
-      const jobList = await getJobs();
-      const current = (Array.isArray(jobList) ? jobList : []).find((j) => j._id === jobId);
-      if (current) setJobData(current);
+      await fetchSchedule();
+      await refreshJobScopedMeta(jobId);
     } catch (err) {
       message.error(err?.response?.data?.message || "Failed to complete scheduling");
     } finally {
@@ -331,7 +371,24 @@ export default function Scheduling() {
     }
   };
 
+  const onCalendarPanelChange = (value) => {
+    setCalendarValue(value);
+  };
+
+  const onCalendarSelect = (value) => {
+    setCalendarValue(value);
+  };
+
   const columns = [
+    {
+      title: "Job",
+      key: "job",
+      width: 180,
+      render: (_, record) => {
+        const id = record.jobId?._id || record.jobId;
+        return jobLabelById[id] || id || "—";
+      },
+    },
     { title: "Title", dataIndex: "title" },
     {
       title: "Priority",
@@ -432,13 +489,158 @@ export default function Scheduling() {
     },
   ];
 
+  const dateCellRender = (value) => {
+    const dayItems = items.filter((item) => sameDay(item.startTime, value));
+    if (!dayItems.length) return null;
+    return (
+      <ul
+        style={{
+          listStyle: "none",
+          margin: 0,
+          padding: 0,
+          maxHeight: 72,
+          overflow: "auto",
+        }}
+      >
+        {dayItems.slice(0, 4).map((item) => (
+          <li key={item._id} style={{ marginBottom: 2 }}>
+            <Badge
+              status={STATUS_BADGE[item.status] || "default"}
+              text={
+                <Button
+                  type="link"
+                  size="small"
+                  style={{ padding: 0, height: "auto", whiteSpace: "normal", textAlign: "left" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openEdit(item);
+                  }}
+                >
+                  {item.title}
+                </Button>
+              }
+            />
+          </li>
+        ))}
+        {dayItems.length > 4 ? (
+          <li style={{ fontSize: 12, color: "#888" }}>+{dayItems.length - 4} more</li>
+        ) : null}
+      </ul>
+    );
+  };
+
+  const selectedDayItems = useMemo(
+    () => items.filter((item) => sameDay(item.startTime, calendarValue)),
+    [items, calendarValue]
+  );
+
+  const filterBar = (
+    <Card style={{ marginBottom: 16 }}>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={8} lg={6}>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>Job</div>
+          <Select
+            showSearch
+            allowClear
+            style={{ width: "100%" }}
+            placeholder="All jobs"
+            value={jobId || undefined}
+            onChange={(v) => {
+              if (v) {
+                setActiveJobId(v);
+                navigate(`/admin/scheduling?jobId=${v}`);
+              } else {
+                setActiveJobId("");
+                navigate("/admin/scheduling");
+              }
+            }}
+            optionFilterProp="children"
+          >
+            {jobs.map((job) => (
+              <Option key={job._id} value={job._id}>
+                {job.jobId} - {job.customer || "No customer"}
+              </Option>
+            ))}
+          </Select>
+        </Col>
+        <Col xs={24} md={8} lg={6}>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>Status</div>
+          <Select
+            allowClear
+            style={{ width: "100%" }}
+            placeholder="All statuses"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={STATUSES.map((s) => ({ value: s, label: s }))}
+          />
+        </Col>
+        <Col xs={24} md={8} lg={6}>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>Worker</div>
+          <Select
+            showSearch
+            allowClear
+            style={{ width: "100%" }}
+            placeholder="All workers"
+            value={workerFilter}
+            onChange={setWorkerFilter}
+            optionFilterProp="children"
+          >
+            {employees.map((e) => (
+              <Option key={e._id} value={e._id}>
+                {e.name} ({e.designation || "Employee"})
+              </Option>
+            ))}
+          </Select>
+        </Col>
+        <Col xs={24} md={8} lg={6}>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>Team</div>
+          <Select
+            showSearch
+            allowClear
+            style={{ width: "100%" }}
+            placeholder="All teams"
+            value={teamFilter}
+            onChange={setTeamFilter}
+            options={teamOptions.map((t) => ({ value: t, label: t }))}
+          />
+        </Col>
+        <Col xs={24} md={8} lg={6}>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>Start date</div>
+          <DatePicker
+            allowClear
+            style={{ width: "100%" }}
+            value={dateFrom}
+            placeholder="Any start"
+            disabledDate={(current) =>
+              !!(dateTo && current && current.isAfter(dateTo, "day"))
+            }
+            onChange={(v) => setDateFrom(v || null)}
+          />
+        </Col>
+        <Col xs={24} md={8} lg={6}>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>End date</div>
+          <DatePicker
+            allowClear
+            style={{ width: "100%" }}
+            value={dateTo}
+            placeholder="Any end"
+            disabledDate={(current) =>
+              !!(dateFrom && current && current.isBefore(dateFrom, "day"))
+            }
+            onChange={(v) => setDateTo(v || null)}
+          />
+        </Col>
+      </Row>
+    </Card>
+  );
+
   return (
     <div className="page-shell">
       <div className="page-shell__header">
         <div>
           <h2 className="page-shell__title">Scheduling</h2>
           <div style={{ color: "#666" }}>
-            Assign jobs to engineers, drafters, fabricators, and installers.
+            One schedule for all jobs. Filter by status, worker, team, and date — List and Calendar stay in sync.
           </div>
         </div>
         <Space wrap>
@@ -450,7 +652,7 @@ export default function Scheduling() {
             type="primary"
             onClick={completeScheduling}
             loading={completing}
-            disabled={!jobId || !items.length || schedulingSeApproved}
+            disabled={!jobId || !jobAssignmentCount || schedulingSeApproved}
           >
             Mark Scheduling Complete
           </Button>
@@ -476,7 +678,7 @@ export default function Scheduling() {
         />
       ) : null}
 
-      {jobId && items.length > 0 && !schedulingSePending && !schedulingSeApproved ? (
+      {jobId && jobAssignmentCount > 0 && !schedulingSePending && !schedulingSeApproved ? (
         <Alert
           type="info"
           showIcon
@@ -486,36 +688,7 @@ export default function Scheduling() {
         />
       ) : null}
 
-      <Card style={{ marginBottom: 16 }}>
-        <Row gutter={16}>
-          <Col xs={24} md={12}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Job</div>
-            <Select
-              showSearch
-              allowClear
-              style={{ width: "100%" }}
-              placeholder="Select job"
-              value={jobId || undefined}
-              onChange={(v) => navigate(v ? `/admin/scheduling?jobId=${v}` : "/admin/scheduling")}
-              optionFilterProp="children"
-            >
-              {jobs.map((job) => (
-                <Option key={job._id} value={job._id}>
-                  {job.jobId} - {job.customer || "No customer"}
-                </Option>
-              ))}
-            </Select>
-          </Col>
-          <Col xs={24} md={12}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Calendar Range</div>
-            <RangePicker
-              style={{ width: "100%" }}
-              value={range}
-              onChange={(v) => setRange(v)}
-            />
-          </Col>
-        </Row>
-      </Card>
+      {filterBar}
 
       <Tabs
         activeKey={view}
@@ -524,7 +697,7 @@ export default function Scheduling() {
           {
             key: "list",
             label: "List View",
-            children: jobId ? (
+            children: (
               <div className="table-responsive-wrap">
                 <Table
                   rowKey="_id"
@@ -533,25 +706,76 @@ export default function Scheduling() {
                   dataSource={items}
                   pagination={{ pageSize: 10 }}
                   scroll={{ x: "max-content" }}
+                  locale={{ emptyText: <Empty description="No assignments for these filters" /> }}
                 />
               </div>
-            ) : (
-              <Empty description="Select a job to view schedule assignments" />
             ),
           },
           {
             key: "calendar",
             label: "Calendar View",
             children: (
-              <div className="table-responsive-wrap">
-                <Table
-                  rowKey="_id"
-                  columns={columns}
-                  dataSource={calendarItems}
-                  pagination={{ pageSize: 15 }}
-                  scroll={{ x: "max-content" }}
-                />
-              </div>
+              <Row gutter={[16, 16]}>
+                <Col xs={24} lg={16}>
+                  <Card loading={loading} styles={{ body: { padding: 8 } }}>
+                    <Calendar
+                      value={calendarValue}
+                      onSelect={onCalendarSelect}
+                      onPanelChange={onCalendarPanelChange}
+                      cellRender={(current, info) => {
+                        if (info.type === "date") return dateCellRender(current);
+                        return info.originNode;
+                      }}
+                    />
+                  </Card>
+                </Col>
+                <Col xs={24} lg={8}>
+                  <Card
+                    title={`Assignments — ${calendarValue.format("DD MMM YYYY")}`}
+                    extra={<Tag>{selectedDayItems.length}</Tag>}
+                  >
+                    {selectedDayItems.length ? (
+                      <List
+                        dataSource={selectedDayItems}
+                        renderItem={(item) => {
+                          const id = item.jobId?._id || item.jobId;
+                          return (
+                            <List.Item
+                              actions={[
+                                <Button key="edit" type="link" size="small" onClick={() => openEdit(item)}>
+                                  Edit
+                                </Button>,
+                              ]}
+                            >
+                              <List.Item.Meta
+                                title={
+                                  <Space wrap>
+                                    <span>{item.title}</span>
+                                    <Tag>{item.status}</Tag>
+                                  </Space>
+                                }
+                                description={
+                                  <>
+                                    <div>{jobLabelById[id] || id}</div>
+                                    <div>
+                                      {dayjs(item.startTime).format("HH:mm")} –{" "}
+                                      {dayjs(item.endTime).format("HH:mm")}
+                                    </div>
+                                    <div>{formatAssignees(item)}</div>
+                                    <div>{formatTeams(item)}</div>
+                                  </>
+                                }
+                              />
+                            </List.Item>
+                          );
+                        }}
+                      />
+                    ) : (
+                      <Empty description="No assignments on this day" />
+                    )}
+                  </Card>
+                </Col>
+              </Row>
             ),
           },
         ]}

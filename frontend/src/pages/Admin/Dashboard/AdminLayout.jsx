@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Layout, Button, Typography } from "antd";
-import { MenuOutlined, MessageOutlined } from "@ant-design/icons";
+import { MenuOutlined, MessageOutlined, ProjectOutlined } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Navigation from "../../../apps/Navigation/NavigationContainer";
 import BrandLogo from "@/components/BrandLogo";
@@ -74,6 +74,14 @@ export default function AdminLayout() {
           </Text>
 
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+            <Button
+              type="default"
+              size={isMobile ? "small" : "middle"}
+              icon={<ProjectOutlined />}
+              onClick={() => navigate("/admin/jobs")}
+            >
+              Jobs
+            </Button>
             <Button
               type="default"
               size={isMobile ? "small" : "middle"}

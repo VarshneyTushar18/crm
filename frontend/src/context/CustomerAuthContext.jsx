@@ -26,6 +26,10 @@ export function CustomerAuthProvider({ children }) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         localStorage.removeItem("role");
+        localStorage.removeItem("customer");
+        localStorage.removeItem("customer_token");
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("jwt");
       },
     }),
     [token, customer]

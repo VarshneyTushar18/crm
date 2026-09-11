@@ -171,11 +171,12 @@ const request = {
   list: async ({ entity, options = {} }) => {
     try {
       includeToken();
-      let query = '?';
-      for (var key in options) {
-        query += key + '=' + options[key] + '&';
-      }
-      query = query.slice(0, -1);
+      const params = new URLSearchParams();
+      Object.entries(options || {}).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === '') return;
+        params.append(key, String(value));
+      });
+      const query = params.toString() ? `?${params.toString()}` : '';
 
       const response = await axios.get(entity + '/list' + query);
 

@@ -7,6 +7,7 @@ export const SITE_ENGINEER_MENU_KEYS = new Set([
   "fabrication",
   "qc",
   "installation",
+  "defects-snags",
 ]);
 
 export const SITE_ENGINEER_HOME = "/admin/site-engineer";

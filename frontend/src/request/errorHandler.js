@@ -1,5 +1,6 @@
 import { notification } from 'antd';
 import codeMessage from './codeMessage';
+import { isAuthSessionError, redirectOnSessionExpired } from '@/utils/sessionExpiry';
 
 const errorHandler = (error) => {
   if (!navigator.onLine) {
@@ -38,22 +39,21 @@ const errorHandler = (error) => {
     };
   }
 
-  if (response && response.data && response.data.jwtExpired) {
-    const result = window.localStorage.getItem('auth');
-    const jsonFile = window.localStorage.getItem('isLogout');
-    const { isLogout } = (jsonFile && JSON.parse(jsonFile)) || false;
-    window.localStorage.removeItem('auth');
-    window.localStorage.removeItem('isLogout');
-    if (result || isLogout) {
-      window.location.href = '/logout';
-    }
+  // Session / JWT expired: redirect once, no toast spam
+  if (isAuthSessionError(error)) {
+    redirectOnSessionExpired();
+    return {
+      success: false,
+      result: null,
+      message: response?.data?.message || 'Session expired. Please login again.',
+    };
   }
 
   if (response && response.status) {
     const message = response.data && response.data.message;
 
     const errorText = message || codeMessage[response.status];
-    const { status, error } = response;
+    const { status } = response;
     notification.config({
       duration: 20,
       maxCount: 2,
@@ -63,11 +63,7 @@ const errorHandler = (error) => {
       description: errorText,
     });
 
-    if (response?.data?.error?.name === 'JsonWebTokenError') {
-      window.localStorage.removeItem('auth');
-      window.localStorage.removeItem('isLogout');
-      window.location.href = '/logout';
-    } else return response.data;
+    return response.data;
   } else {
     notification.config({
       duration: 15,
