@@ -39,9 +39,10 @@ const getUploadMiddleware = (mod, fieldName) => {
 const uploadLogo = getUploadMiddleware(uploadModule, "logo");
 
 // ✅ PUBLIC: Customer portal reads this (no admin)
-router.get("/public", loadSettings, async (req, res) => {
+router.get("/public", async (req, res) => {
   try {
-    const settings = req.settings || req.serverData?.settings || req.serverData || {};
+    const loaded = await loadSettings().catch(() => ({}));
+    const settings = loaded || req.settings || req.serverData?.settings || req.serverData || {};
 
     const getVal = (key) => {
       if (Array.isArray(settings)) {

@@ -58,3 +58,5 @@ tmp_*
 # Misc local notes
 notes.md
 admin*.json.txt
+.vercel
+.env*

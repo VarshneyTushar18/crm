@@ -3,10 +3,11 @@ const router = express.Router();
 
 const loadSettings = require("../../middlewares/settings/loadSettings");
 
-router.get("/public", loadSettings, async (req, res) => {
+router.get("/public", async (req, res) => {
   try {
-    // loadSettings ka output different projects me different hota hai
+    const loaded = await loadSettings().catch(() => ({}));
     const settings =
+      loaded ||
       req.settings ||
       req.serverData?.settings ||
       req.serverData ||

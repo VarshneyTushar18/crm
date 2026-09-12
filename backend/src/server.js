@@ -34,15 +34,8 @@ mongoose.connection.on('error', (error) => {
   console.error(`2. 🚫 Error → : ${error.message}`);
 });
 
-const rootDir = path.resolve(__dirname);
-const modelsFiles = globSync(path.join(rootDir, 'models/**/*.js').replace(/\\/g, '/'));
-
-for (const filePath of modelsFiles) {
-  require(path.resolve(filePath));
-}
-
-// CRM Job must be the canonical "Job" model (legacy mobile uses MobileJob).
-require(path.resolve(rootDir, 'models/appModels/Job.js'));
+// Statically load all models
+require('./models/loadModels');
 
 // Start our app!
 const app = require('./app');

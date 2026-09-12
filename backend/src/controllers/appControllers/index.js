@@ -1,30 +1,24 @@
 const createCRUDController = require('../middlewaresControllers/createCRUDController');
 const { routesList } = require('../../models/utils');
 
-const fs = require('fs');
-const path = require('path');
-
-const controllerDirectories = fs
-  .readdirSync(__dirname, { withFileTypes: true })
-  .filter((dirent) => dirent.isDirectory())
-  .map((dirent) => dirent.name);
+// Static imports ensure Vercel Node File Trace (NFT) bundles all controller files
+const customControllerMap = {
+  clientController: require('./clientController'),
+  invoiceController: require('./invoiceController'),
+  paymentController: require('./paymentController'),
+  paymentModeController: require('./paymentModeController'),
+  quoteController: require('./quoteController'),
+  taxesController: require('./taxesController'),
+};
 
 const appControllers = () => {
   const controllers = {};
   const hasCustomControllers = [];
 
-  controllerDirectories.forEach((controllerName) => {
-    try {
-      const customController = require(path.join(__dirname, controllerName));
-      console.log(`Loading controller: ${controllerName}`);
-
-      if (customController) {
-        hasCustomControllers.push(controllerName);
-        controllers[controllerName] = customController;
-      }
-    } catch (err) {
-      console.error(`Error loading controller ${controllerName}:`, err.message);
-      throw new Error(`Error loading controller ${controllerName}: ${err.message}`);
+  Object.entries(customControllerMap).forEach(([controllerName, customController]) => {
+    if (customController) {
+      hasCustomControllers.push(controllerName);
+      controllers[controllerName] = customController;
     }
   });
 
