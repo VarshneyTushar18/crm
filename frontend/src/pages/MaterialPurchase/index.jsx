@@ -20,6 +20,7 @@ import {
   Col,
 } from "antd";
 import { useNavigate, useLocation } from "react-router-dom";
+import { ArrowLeftOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useJob } from "../../context/JobContext";
 import { getJobs, updateJob } from "../Jobs/jobApi";
@@ -96,6 +97,21 @@ export default function MaterialPurchase() {
         String(job?.stage || "").toLowerCase().includes("material")
     );
   }, [jobs]);
+
+  const stageFilterOptions = useMemo(() => {
+    const stages = [
+      ...new Set(eligibleJobs.map((job) => job.stage).filter(Boolean)),
+    ];
+    return stages.sort().map((stage) => ({ text: stage, value: stage }));
+  }, [eligibleJobs]);
+
+  const clearStaleJobSelection = () => {
+    setJobData(null);
+    setItems([]);
+    setActiveJobId(null);
+    localStorage.removeItem("activeJobId");
+    navigate("/admin/material-purchase", { replace: true });
+  };
 
   const fetchJobs = async () => {
     try {
@@ -202,9 +218,7 @@ export default function MaterialPurchase() {
         message.warning(
           "This job is not eligible for Material Purchase."
         );
-        setJobData(null);
-        setItems([]);
-        navigate("/admin/material-purchase");
+        clearStaleJobSelection();
         return;
       }
 
@@ -217,10 +231,7 @@ export default function MaterialPurchase() {
 
   const onJobChange = (selectedJobId) => {
     if (!selectedJobId) {
-      setJobData(null);
-      setItems([]);
-      localStorage.removeItem("activeJobId");
-      navigate("/admin/material-purchase");
+      clearStaleJobSelection();
       return;
     }
 
@@ -530,6 +541,57 @@ export default function MaterialPurchase() {
 
   const isEmpty = !loadingItems && items.length === 0;
 
+  const eligibleJobColumns = [
+    {
+      title: "Job",
+      key: "job",
+      width: 220,
+      render: (_, record) => (
+        <Button
+          type="link"
+          style={{ padding: 0, height: "auto", fontWeight: 600 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onJobChange(record._id);
+          }}
+        >
+          {record.jobId || record._id}
+          {record.customer ? ` - ${record.customer}` : ""}
+        </Button>
+      ),
+    },
+    {
+      title: "Customer",
+      dataIndex: "customer",
+      render: (v) => v || "—",
+      width: 160,
+    },
+    {
+      title: "Site",
+      dataIndex: "site",
+      render: (v) => v || "—",
+      width: 200,
+    },
+    {
+      title: "Stage",
+      dataIndex: "stage",
+      width: 150,
+      filters: stageFilterOptions,
+      onFilter: (value, record) => record.stage === value,
+      render: (v) => (
+        <Tag color={JOB_STAGE_COLORS[v] || "default"}>{v || "—"}</Tag>
+      ),
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      width: 120,
+      render: (v) => (
+        <Tag color={JOB_STATUS_COLORS[v] || "default"}>{v || "—"}</Tag>
+      ),
+    },
+  ];
+
   return (
     <div style={{ padding: 20 }}>
       <Space
@@ -545,6 +607,11 @@ export default function MaterialPurchase() {
         </div>
 
         <Space wrap>
+          {jobId ? (
+            <Button icon={<ArrowLeftOutlined />} onClick={() => onJobChange(null)}>
+              Back to Jobs List
+            </Button>
+          ) : null}
           <Button onClick={() => navigate("/admin/jobs")}>Back to Jobs</Button>
           <SendForSiteEngineerButton
             jobId={jobId}
@@ -563,59 +630,87 @@ export default function MaterialPurchase() {
         </Space>
       </Space>
 
-      <Card style={{ marginBottom: 16 }}>
-        <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} md={12} lg={10}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Search Eligible Job</div>
-            <Select
-              showSearch
-              allowClear
-              placeholder="Select eligible job"
-              style={{ width: "100%" }}
-              value={jobId || undefined}
-              onChange={onJobChange}
-              loading={loadingJobs}
-              optionFilterProp="children"
-            >
-              {eligibleJobs.map((job) => (
-                <Option key={job._id} value={job._id}>
-                  {job.jobId} - {job.customer || "No customer"}
-                </Option>
-              ))}
-            </Select>
-          </Col>
+      {jobId ? (
+        <Card style={{ marginBottom: 16 }}>
+          <Row gutter={[16, 16]} align="middle">
+            <Col xs={24} md={12} lg={10}>
+              <div style={{ marginBottom: 8, fontWeight: 500 }}>Search Eligible Job</div>
+              <Select
+                showSearch
+                allowClear
+                placeholder="Select eligible job"
+                style={{ width: "100%" }}
+                value={
+                  eligibleJobs.some((job) => job._id === jobId) ? jobId : undefined
+                }
+                onChange={onJobChange}
+                loading={loadingJobs}
+                optionFilterProp="children"
+              >
+                {eligibleJobs.map((job) => (
+                  <Option key={job._id} value={job._id}>
+                    {job.jobId} - {job.customer || "No customer"}
+                  </Option>
+                ))}
+              </Select>
+            </Col>
 
-          <Col xs={24} md={12} lg={8}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Current Selection</div>
-            <Input
-              readOnly
-              value={
-                jobData
-                  ? `${jobData.jobId || "-"} | ${jobData.customer || "-"}`
-                  : ""
-              }
-              placeholder="No eligible job selected"
-            />
-          </Col>
+            <Col xs={24} md={12} lg={8}>
+              <div style={{ marginBottom: 8, fontWeight: 500 }}>Current Selection</div>
+              <Input
+                readOnly
+                value={
+                  jobData
+                    ? `${jobData.jobId || "-"} | ${jobData.customer || "-"}`
+                    : ""
+                }
+                placeholder="No eligible job selected"
+              />
+            </Col>
 
-          <Col xs={24} lg={6}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>Material Status</div>
-            {items.length > 0 ? (
-              <Tag color="green">Material Items Available</Tag>
-            ) : (
-              <Tag color="orange">No Material Items</Tag>
-            )}
-          </Col>
-        </Row>
-      </Card>
+            <Col xs={24} lg={6}>
+              <div style={{ marginBottom: 8, fontWeight: 500 }}>Material Status</div>
+              {items.length > 0 ? (
+                <Tag color="green">Material Items Available</Tag>
+              ) : (
+                <Tag color="orange">No Material Items</Tag>
+              )}
+            </Col>
+          </Row>
+        </Card>
+      ) : null}
 
       {!jobId ? (
-        <Card>
-          <Empty description="Please select an eligible job to continue." />
+        <Card title="Eligible Jobs">
+          {eligibleJobs.length === 0 && !loadingJobs ? (
+            <Empty description="No eligible jobs. Complete Drafting first." />
+          ) : (
+            <div className="table-responsive-wrap">
+              <Table
+                columns={eligibleJobColumns}
+                dataSource={eligibleJobs}
+                rowKey="_id"
+                loading={loadingJobs}
+                pagination={{
+                  pageSize: 10,
+                  showTotal: (total) => `Total ${total} jobs`,
+                }}
+                scroll={{ x: "max-content" }}
+                onRow={(record) => ({
+                  onClick: () => onJobChange(record._id),
+                  style: { cursor: "pointer" },
+                })}
+              />
+            </div>
+          )}
         </Card>
       ) : !jobData ? (
         <Card>
-          <Spin />
+          {loadingJobs || loadingItems ? (
+            <Spin />
+          ) : (
+            <Empty description="Selected job is not eligible or could not be loaded. Pick a job from the list." />
+          )}
         </Card>
       ) : (
         <>
