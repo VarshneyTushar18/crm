@@ -1,13 +1,13 @@
 const createCRUDController = require('../middlewaresControllers/createCRUDController');
 const { routesList } = require('../../models/utils');
 
-const { globSync } = require('glob');
+const fs = require('fs');
 const path = require('path');
 
-const pattern = './src/controllers/appControllers/*/**/';
-const controllerDirectories = globSync(pattern).map((filePath) => {
-  return path.basename(filePath);
-});
+const controllerDirectories = fs
+  .readdirSync(__dirname, { withFileTypes: true })
+  .filter((dirent) => dirent.isDirectory())
+  .map((dirent) => dirent.name);
 
 const appControllers = () => {
   const controllers = {};
@@ -15,7 +15,7 @@ const appControllers = () => {
 
   controllerDirectories.forEach((controllerName) => {
     try {
-      const customController = require('@/controllers/appControllers/' + controllerName);
+      const customController = require(path.join(__dirname, controllerName));
       console.log(`Loading controller: ${controllerName}`);
 
       if (customController) {
