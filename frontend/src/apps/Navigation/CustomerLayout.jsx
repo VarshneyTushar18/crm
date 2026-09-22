@@ -160,11 +160,12 @@ export default function CustomerLayout() {
   const sidebarContent = (
     <>
       <div
+        className="customer-sidebar-header"
         style={{
           padding: "14px 16px",
           minHeight: 72,
           cursor: "pointer",
-          borderBottom: "1px solid #f0f0f0",
+          borderBottom: "1px solid #e2e8f0",
           display: "flex",
           alignItems: "center",
           justifyContent: collapsed && !isMobile ? "center" : "flex-start",
@@ -182,22 +183,20 @@ export default function CustomerLayout() {
 
       <div style={{ padding: "16px 16px 12px" }}>
         <div
+          className="customer-sidebar-profile"
           style={{
-            background: "#f5f5f5",
             borderRadius: 12,
             padding: collapsed && !isMobile ? 10 : 12,
             display: "flex",
             alignItems: "center",
             gap: 10,
-            border: "1px solid #ececec",
           }}
         >
           <Avatar icon={<UserOutlined />} />
           {(!collapsed || isMobile) && (
-            <div style={{ color: "#000", overflow: "hidden" }}>
+            <div style={{ overflow: "hidden" }}>
               <Text
                 style={{
-                  color: "#000",
                   display: "block",
                   whiteSpace: "nowrap",
                   overflow: "hidden",
@@ -207,30 +206,28 @@ export default function CustomerLayout() {
               >
                 {customerName}
               </Text>
-              <div style={{ fontSize: 12, color: "#666" }}>Customer</div>
+              <div className="customer-sidebar-role">Customer</div>
             </div>
           )}
         </div>
       </div>
 
-      <Divider style={{ margin: "8px 0 12px", borderColor: "#f0f0f0" }} />
+      <Divider className="customer-sidebar-divider" style={{ margin: "8px 0 12px" }} />
 
       <Menu
+        className="customer-sidebar-menu"
         theme="light"
         mode="inline"
         selectedKeys={[selectedKey]}
         items={menuItems}
         onClick={() => setDrawerOpen(false)}
-        style={{
-          borderRight: 0,
-          background: "#fff",
-        }}
+        style={{ borderRight: 0, background: "#fff" }}
       />
     </>
   );
 
   return (
-    <Layout className="customer-shell" style={{ minHeight: "100vh", background: "#f5f7fb" }}>
+    <Layout className="customer-shell" style={{ minHeight: "100vh" }}>
       {!isMobile && (
         <Sider
           width={260}
@@ -239,10 +236,6 @@ export default function CustomerLayout() {
           trigger={null}
           theme="light"
           className="customer-sider--desktop"
-          style={{
-            background: "#fff",
-            borderRight: "1px solid #f0f0f0",
-          }}
         >
           {sidebarContent}
         </Sider>
@@ -318,7 +311,7 @@ export default function CustomerLayout() {
           </Header>
         )}
 
-        <Content className="customer-content" style={{ background: "#f5f7fb", padding: 16 }}>
+        <Content className="customer-content" style={{ background: "transparent", padding: 16 }}>
           <Outlet />
         </Content>
       </Layout>

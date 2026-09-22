@@ -65,7 +65,7 @@ const JOB_STATUS_COLORS = {
 const KANBAN_STATUS_STYLES = {
   "To Schedule": {
     color: "#595959",
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#f8fafc",
     borderColor: "#d9d9d9",
   },
   Scheduled: {

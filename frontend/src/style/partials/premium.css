@@ -1,0 +1,216 @@
+/* Light premium theme (visual only) */
+
+:root {
+  --premium-sidebar-bg: #ffffff;
+  --premium-accent: #339393;
+  --premium-accent-dark: #0d5c5c;
+  --premium-accent-soft: rgba(51, 157, 157, 0.12);
+  --premium-page-bg: #eef1f6;
+  --premium-surface: #ffffff;
+  --premium-surface-muted: #f8fafc;
+  --premium-border: #e2e8f0;
+  --premium-text: #0f172a;
+  --premium-text-muted: #64748b;
+  --premium-chart: #339393;
+  --premium-radius: 12px;
+  --premium-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --premium-shadow-md: 0 8px 30px rgba(15, 23, 42, 0.08);
+  --premium-shadow-sidebar: 0 4px 24px rgba(15, 23, 42, 0.08);
+}
+
+/* ── Admin light sidebar ── */
+.admin-shell > .ant-layout-sider.navigation {
+  background: var(--premium-sidebar-bg) !important;
+  border: 1px solid var(--premium-border) !important;
+  box-shadow: var(--premium-shadow-sidebar) !important;
+}
+
+.navigation {
+  background: var(--premium-sidebar-bg) !important;
+}
+
+.navigation .logo {
+  margin: 16px 14px 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid var(--premium-border);
+}
+
+.navigation .ant-menu-light .ant-menu-item-selected {
+  background: var(--premium-accent-soft) !important;
+  color: #0d5c5c !important;
+  font-weight: 600;
+}
+
+.navigation .ant-menu-light .ant-menu-item-selected .ant-menu-item-icon,
+.navigation .ant-menu-light .ant-menu-item-selected .anticon {
+  color: var(--premium-accent) !important;
+}
+
+.navigation .ant-layout-sider-trigger {
+  background: #f8fafc !important;
+  border-top: 1px solid var(--premium-border);
+  color: var(--premium-text-muted) !important;
+}
+
+.customer-shell {
+  background: var(--premium-page-bg) !important;
+}
+
+.customer-shell .customer-content {
+  background: var(--premium-surface);
+  border-radius: var(--premium-radius);
+  border: 1px solid var(--premium-border);
+  box-shadow: var(--premium-shadow-sm);
+}
+
+.customer-shell .customer-sider--desktop.ant-layout-sider {
+  background: var(--premium-sidebar-bg) !important;
+  border-right: 1px solid var(--premium-border) !important;
+  box-shadow: var(--premium-shadow-sidebar);
+}
+
+.customer-shell .customer-sidebar-header {
+  border-bottom: 1px solid var(--premium-border) !important;
+}
+
+.customer-shell .customer-sidebar-profile {
+  background: #f8fafc !important;
+  border: 1px solid var(--premium-border) !important;
+}
+
+.customer-shell .customer-sidebar-profile .ant-typography {
+  color: var(--premium-text) !important;
+}
+
+.customer-shell .customer-sidebar-role {
+  font-size: 12px;
+  color: var(--premium-text-muted);
+}
+
+.customer-shell .customer-sidebar-divider {
+  border-color: var(--premium-border) !important;
+}
+
+.customer-shell .customer-sidebar-menu.ant-menu-light .ant-menu-item-selected {
+  background: var(--premium-accent-soft) !important;
+  color: #0d5c5c !important;
+  font-weight: 600;
+}
+
+/* ── Surfaces ── */
+.whiteBox {
+  border-radius: var(--premium-radius);
+}
+
+.whiteBox.shadow {
+  border: 1px solid var(--premium-border) !important;
+  box-shadow: var(--premium-shadow-sm) !important;
+}
+
+.whiteBox.shadow:hover {
+  border-color: #cbd5e1 !important;
+  box-shadow: var(--premium-shadow-md) !important;
+}
+
+.ant-card {
+  border-radius: var(--premium-radius) !important;
+  border-color: var(--premium-border) !important;
+  box-shadow: var(--premium-shadow-sm);
+}
+
+.ant-card:hover {
+  box-shadow: var(--premium-shadow-md);
+}
+
+.ant-table-wrapper .ant-table {
+  border-radius: var(--premium-radius);
+  overflow: hidden;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th {
+  background: #f8fafc !important;
+  color: var(--premium-text-muted) !important;
+  font-weight: 600 !important;
+  border-bottom: 1px solid var(--premium-border) !important;
+}
+
+.ant-table-wrapper .ant-table-tbody > tr:hover > td {
+  background: #f1f5f9 !important;
+}
+
+.ant-btn-primary:not(:disabled) {
+  box-shadow: 0 2px 8px rgba(51, 157, 157, 0.28);
+}
+
+.ant-modal-content {
+  border-radius: 14px !important;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.12) !important;
+}
+
+.ant-drawer .navigation {
+  background: var(--premium-sidebar-bg) !important;
+}
+
+.admin-header__title {
+  color: var(--premium-text);
+  letter-spacing: -0.02em;
+}
+
+.page-shell {
+  background: transparent;
+}
+
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select-selector,
+.ant-picker {
+  border-radius: 10px !important;
+}
+
+.ant-menu-light.ant-menu-inline .ant-menu-sub.ant-menu-inline {
+  background: #f8fafc !important;
+}
+
+/* Unify legacy template colors inside admin content */
+.admin-content .whiteBox h3,
+.admin-content h1,
+.admin-content h2,
+.admin-content h3,
+.admin-content h4,
+.admin-content .ant-typography-title {
+  color: var(--premium-text) !important;
+}
+
+.admin-content .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--premium-accent-dark) !important;
+}
+
+.admin-content .ant-tabs-ink-bar {
+  background: var(--premium-accent) !important;
+}
+
+.ant-tag-blue {
+  color: var(--premium-accent-dark) !important;
+  background: var(--premium-accent-soft) !important;
+  border-color: rgba(51, 157, 157, 0.25) !important;
+}
+
+.ant-btn-link {
+  color: var(--premium-accent-dark) !important;
+}
+
+.ant-btn-link:not(:disabled):hover {
+  color: var(--premium-accent) !important;
+}
+
+/* Worker dashboard attendance calendar — full-cell status colors */
+.worker-attendance-calendar .ant-picker-cell-selected .worker-attendance-calendar__cell {
+  outline: 2px solid var(--premium-accent, #339393);
+  outline-offset: -1px;
+}
+
+.worker-attendance-calendar .ant-picker-cell-today .worker-attendance-calendar__cell {
+  box-shadow: inset 0 0 0 1px rgba(51, 157, 157, 0.45);
+}

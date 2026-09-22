@@ -1,5 +1,5 @@
 .ant-layout {
-  background: #ffffff !important;
+  background: #eef1f6 !important;
 }
 .site-layout .site-layout-background {
   background: #fff;
@@ -52,7 +52,8 @@ h3,
 h4,
 h5,
 h6 {
-  font-weight: 700 !important;
+  font-weight: 600 !important;
+  color: #0f172a;
 }
 
 .ant-menu-inline {

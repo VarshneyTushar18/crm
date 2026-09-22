@@ -56,7 +56,7 @@ const { RangePicker } = DatePicker;
 
 const POLLING_INTERVAL_MS = 30_000;
 
-function BarList({ items = [], loading, valueKey = 'count', labelKey = 'label', color = '#1677ff' }) {
+function BarList({ items = [], loading, valueKey = 'count', labelKey = 'label', color = '#339393' }) {
   if (loading) {
     return (
       <div style={{ padding: 24, textAlign: 'center' }}>
@@ -78,7 +78,7 @@ function BarList({ items = [], loading, valueKey = 'count', labelKey = 'label', 
               <Text style={{ fontSize: 13 }}>{item[labelKey] || item.status}</Text>
               <Text strong>{value}</Text>
             </div>
-            <div style={{ height: 8, background: '#f0f0f0', borderRadius: 6, overflow: 'hidden' }}>
+            <div style={{ height: 8, background: '#e2e8f0', borderRadius: 6, overflow: 'hidden' }}>
               <div
                 style={{
                   width: `${Math.round((value / max) * 100)}%`,
@@ -96,7 +96,7 @@ function BarList({ items = [], loading, valueKey = 'count', labelKey = 'label', 
 
 const WORKFLOW_STAGE_VISIBLE_JOBS = 5;
 
-function WorkflowStageJobsList({ items = [], loading, onOpenJob, color = '#1677ff' }) {
+function WorkflowStageJobsList({ items = [], loading, onOpenJob, color = '#339393' }) {
   if (loading) {
     return (
       <div style={{ padding: 24, textAlign: 'center' }}>
@@ -140,7 +140,7 @@ function WorkflowStageJobsList({ items = [], loading, onOpenJob, color = '#1677f
             <div
               style={{
                 height: 8,
-                background: '#f0f0f0',
+                background: '#e2e8f0',
                 borderRadius: 6,
                 overflow: 'hidden',
                 marginBottom: 8,
@@ -642,7 +642,7 @@ export default function DashboardModule() {
                 <WorkflowStageJobsList
                   items={ops.workflowStages}
                   loading={overviewLoading}
-                  color="#1677ff"
+                  color="#339393"
                   onOpenJob={(jobId) => navigate(`/admin/job/${jobId}`)}
                 />
               </div>
@@ -683,19 +683,19 @@ export default function DashboardModule() {
                   Operations alerts
                 </Title>
                 <div style={{ display: 'grid', gap: 12 }}>
-                  <div className="whiteBox pad15" style={{ background: '#fafafa' }}>
+                  <div className="whiteBox pad15" style={{ background: '#f8fafc' }}>
                     <Text type="secondary">Material lines delayed</Text>
                     <div style={{ fontSize: 22, fontWeight: 600 }}>{ops.materialLinesDelayed ?? 0}</div>
                   </div>
-                  <div className="whiteBox pad15" style={{ background: '#fafafa' }}>
+                  <div className="whiteBox pad15" style={{ background: '#f8fafc' }}>
                     <Text type="secondary">Open purchase orders</Text>
                     <div style={{ fontSize: 22, fontWeight: 600 }}>{ops.procurementOpen ?? 0}</div>
                   </div>
-                  <div className="whiteBox pad15" style={{ background: '#fafafa' }}>
+                  <div className="whiteBox pad15" style={{ background: '#f8fafc' }}>
                     <Text type="secondary">Stages awaiting Site Engineer</Text>
                     <div style={{ fontSize: 22, fontWeight: 600 }}>{ops.awaitingSEStages ?? 0}</div>
                   </div>
-                  <div className="whiteBox pad15" style={{ background: '#fafafa' }}>
+                  <div className="whiteBox pad15" style={{ background: '#f8fafc' }}>
                     <Text type="secondary">Fabrication jobs in progress</Text>
                     <div style={{ fontSize: 22, fontWeight: 600 }}>{ops.fabrication?.jobsInProgress ?? 0}</div>
                   </div>
@@ -754,7 +754,7 @@ export default function DashboardModule() {
                         <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                         <RechartsTooltip />
                         <Legend />
-                        <Line type="monotone" dataKey="jobs" stroke="#1677ff" strokeWidth={2} name="Jobs" />
+                        <Line type="monotone" dataKey="jobs" stroke="#339393" strokeWidth={2} name="Jobs" />
                         <Line type="monotone" dataKey="leads" stroke="#52c41a" strokeWidth={2} name="Leads" />
                         <Line type="monotone" dataKey="quotes" stroke="#722ed1" strokeWidth={2} name="Quotes" />
                       </LineChart>
@@ -776,7 +776,7 @@ export default function DashboardModule() {
                 <DashboardBarChart
                   data={ops.workflowStages}
                   loading={overviewLoading}
-                  color="#1677ff"
+                  color="#339393"
                 />
               </div>
             </Col>
@@ -998,7 +998,7 @@ export default function DashboardModule() {
       <Row gutter={[32, 32]}>
         <Col className="gutter-row w-full" sm={{ span: 24 }} lg={{ span: 12 }}>
           <div className="whiteBox shadow pad20" style={{ height: '100%' }}>
-            <h3 style={{ color: '#22075e', marginBottom: 5, padding: '0 20px 20px' }}>
+            <h3 style={{ color: '#0f172a', marginBottom: 5, padding: '0 20px 20px' }}>
               {translate('Recent Invoices')}
             </h3>
             <RecentTable entity={'invoice'} dataTableColumns={invoiceColumns} />
@@ -1006,7 +1006,7 @@ export default function DashboardModule() {
         </Col>
         <Col className="gutter-row w-full" sm={{ span: 24 }} lg={{ span: 12 }}>
           <div className="whiteBox shadow pad20" style={{ height: '100%' }}>
-            <h3 style={{ color: '#22075e', marginBottom: 5, padding: '0 20px 20px' }}>
+            <h3 style={{ color: '#0f172a', marginBottom: 5, padding: '0 20px 20px' }}>
               {translate('Recent Quotes')}
             </h3>
             <RecentTable entity={'quote'} dataTableColumns={quoteColumns} />

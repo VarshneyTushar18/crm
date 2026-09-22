@@ -3,8 +3,8 @@
   overflow-y: auto;
   overflow-x: hidden;
   z-index: 100;
-  background: #fff;
-  border-right: 1px solid #edf0f5;
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
 }
 
 .logo {
@@ -16,7 +16,7 @@
 }
 
 .sidebar-wraper {
-  background: #fff;
+  background: transparent;
   display: block;
 }
 

@@ -36,6 +36,12 @@ import Customer from "../pages/Customer";
 
 // ✅ Worker
 import WorkerDashboard from "../pages/Worker/WorkerDashboard";
+import WorkerLayout from "../pages/Worker/WorkerLayout";
+import WorkerTasksPage from "../pages/Worker/WorkerTasksPage";
+import WorkerSchedulePage from "../pages/Worker/WorkerSchedulePage";
+import WorkerAttendancePage from "../pages/Worker/WorkerAttendancePage";
+import WorkerLeavePage from "../pages/Worker/WorkerLeavePage";
+import WorkerDashboardHome from "../pages/Worker/WorkerDashboardHome";
 import WorkerTaskManager from "../pages/WorkerTasks";
 import TeamChatDashboard from "../pages/TeamChat";
 
@@ -101,6 +107,7 @@ import MoneyFormatSettingsModule from "../modules/SettingModule/MoneyFormatSetti
 import Productivity from "../pages/Productivity";
 import NotificationReceipts from "../pages/Notifications";
 import Employee from "@/pages/Employee";
+import HrDashboard from "@/pages/HrDashboard";
 import { SITE_ENGINEER_HOME } from "@/config/siteEngineerAccess";
 
 function AdminHome() {
@@ -160,6 +167,7 @@ export default function AppRouter() {
           <Route path="defects-snags" element={<DefectsSnags />} />
 
           {/* ✅ Other admin pages */}
+          <Route path="hr-dashboard" element={<HrDashboard />} />
           <Route path="attendance" element={<Attendance />} />
           <Route path="productivity" element={<Productivity />} />
           <Route path="leave" element={<LeavePage />} />
@@ -218,7 +226,14 @@ export default function AppRouter() {
 
       {/* ✅ Worker */}
       <Route element={<ProtectedRoute allowRoles={["worker"]} />}>
-        <Route path="/worker" element={<WorkerDashboard />} />
+        <Route path="/worker" element={<WorkerLayout />}>
+          <Route index element={<WorkerDashboardHome />} />
+          <Route path="jobs" element={<WorkerDashboard />} />
+          <Route path="tasks" element={<WorkerTasksPage />} />
+          <Route path="schedule" element={<WorkerSchedulePage />} />
+          <Route path="attendance" element={<WorkerAttendancePage />} />
+          <Route path="leave" element={<WorkerLeavePage />} />
+        </Route>
       </Route>
 
       {/* ✅ Customer Portal (WITH SIDEBAR) */}

@@ -234,7 +234,7 @@ export default function Login() {
 
           <div style={{ textAlign: "right", marginBottom: 20 }}>
             <Text
-              style={{ cursor: "pointer", color: "#1677ff" }}
+              style={{ cursor: "pointer", color: "#2a7a7a" }}
               onClick={() => navigate("/forgot-password")}
             >
               Forgot password?
@@ -257,7 +257,7 @@ export default function Login() {
               <Text type="secondary">
                 Don&apos;t have an account?{" "}
                 <span
-                  style={{ cursor: "pointer", color: "#1677ff", fontWeight: 500 }}
+                  style={{ cursor: "pointer", color: "#2a7a7a", fontWeight: 500 }}
                   onClick={() => navigate("/register")}
                 >
                   Sign Up
@@ -270,7 +270,7 @@ export default function Login() {
             <Text type="secondary" style={{ fontSize: 12 }}>
               Customer? You can also use the{" "}
               <span
-                style={{ cursor: "pointer", color: "#1677ff", fontWeight: 500 }}
+                style={{ cursor: "pointer", color: "#2a7a7a", fontWeight: 500 }}
                 onClick={() => navigate("/portal/login")}
               >
                 dedicated portal login

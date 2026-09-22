@@ -49,6 +49,39 @@ const getStoredUserRole = () => {
   }
 };
 
+const getWorkerItems = (go) => [
+  {
+    key: "dashboard",
+    icon: <DashboardOutlined />,
+    label: <Link to={go("/")}>Dashboard</Link>,
+  },
+  {
+    key: "jobs",
+    icon: <FileOutlined />,
+    label: <Link to={go("/jobs")}>My Jobs</Link>,
+  },
+  {
+    key: "tasks",
+    icon: <TagsOutlined />,
+    label: <Link to={go("/tasks")}>My Tasks</Link>,
+  },
+  {
+    key: "schedule",
+    icon: <CalendarOutlined />,
+    label: <Link to={go("/schedule")}>Schedule</Link>,
+  },
+  {
+    key: "attendance",
+    icon: <AuditOutlined />,
+    label: <Link to={go("/attendance")}>Attendance</Link>,
+  },
+  {
+    key: "leave",
+    icon: <FileTextOutlined />,
+    label: <Link to={go("/leave")}>My Leave</Link>,
+  },
+];
+
 const getSiteEngineerItems = (go) => [
   {
     key: "team-chat",
@@ -172,6 +205,9 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
 
   const items = useMemo(
     () => {
+      if (userRole === "worker") {
+        return getWorkerItems(go);
+      }
       if (userRole === "siteEngineer") {
         return getSiteEngineerItems(go);
       }
@@ -348,6 +384,11 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
         label: "HR",
         children: [
           {
+            key: "hr-dashboard",
+            icon: <DashboardOutlined />,
+            label: <Link to={go("/hr-dashboard")}>Dashboard</Link>,
+          },
+          {
             key: "employee",
             icon: <UserOutlined />,
             label: <Link to={go("/employee")}>Employee</Link>,
@@ -398,6 +439,9 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
     lead: "sales-group",
     quotes: "sales-group",
     jobs: "sales-group",
+    schedule: "",
+    tasks: "",
+    leave: "",
     "team-chat": "sales-group",
     "site-measurement": "planning-group",
     planning: "planning-group",
@@ -416,6 +460,7 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
     "notification-receipts": "business-group",
     invoice: "business-group",
     payment: "business-group",
+    "hr-dashboard": "hr-group",
     employee: "hr-group",
     attendance: "hr-group",
     productivity: "hr-group",

@@ -27,6 +27,7 @@ export const isSiteEngineerBlockedPath = (pathname = "") => {
     path.startsWith("/admin/quote") ||
     path.startsWith("/admin/lead") ||
     path.startsWith("/admin/settings") ||
+    path.startsWith("/admin/hr-dashboard") ||
     path.startsWith("/admin/employee") ||
     path.startsWith("/admin/attendance") ||
     path.startsWith("/admin/leave") ||

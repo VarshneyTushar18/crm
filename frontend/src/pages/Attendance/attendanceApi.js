@@ -30,6 +30,12 @@ export const getAttendance = async () => {
   return res.data;
 };
 
+/** Sync worker check-in/out sessions into attendance records (admin/HR). */
+export const reconcileWorkerAttendance = async () => {
+  const res = await axiosInstance.post("attendance/reconcile-worker-sessions");
+  return res.data;
+};
+
 export const createAttendance = async (data) => {
   const res = await axiosInstance.post("attendance/create", data);
   return res.data;

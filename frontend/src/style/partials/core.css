@@ -19,10 +19,10 @@
   transition: all 0.3s ease-in-out;
 }
 .shadow {
-  border: 1px solid #e0e0e0;
+  border: 1px solid #e2e8f0;
 }
 .shadow:hover {
-  border: 1px solid #bdbdbd;
+  border: 1px solid #cbd5e1;
 }
 .line {
   border-top: 1px solid #edf0f5;

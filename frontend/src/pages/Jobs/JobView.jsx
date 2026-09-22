@@ -495,7 +495,7 @@ export default function JobView() {
             <div style={{ marginBottom: 20 }}>
               <Row gutter={[8, 8]}>
                 <Col span={12}>
-                  <Card size="small" style={{ background: '#f5f5f5' }}>
+                  <Card size="small" style={{ background: '#f8fafc' }}>
                     <div style={{ fontSize: 12, color: 'gray' }}>Contract Total</div>
                     <div style={{ fontSize: 16, fontWeight: 700 }}>${(job?.lockedValue || 0).toLocaleString()}</div>
                   </Card>

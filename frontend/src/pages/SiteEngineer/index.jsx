@@ -391,7 +391,7 @@ export default function SiteEngineer() {
             <Statistic
               title="On review"
               value={summary?.counts?.["On Review"] ?? 0}
-              valueStyle={{ color: "#1677ff" }}
+              valueStyle={{ color: "#339393" }}
             />
           </Card>
         </Col>

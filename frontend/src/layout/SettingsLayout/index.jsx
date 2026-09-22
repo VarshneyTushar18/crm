@@ -10,7 +10,7 @@ const TopCard = ({ title, cardContent }) => {
     <div
       className="whiteBox shadow"
       style={{
-        color: '#595959',
+        color: '#64748b',
         fontSize: 13,
         height: '70px',
         minHeight: 'auto',
@@ -18,7 +18,7 @@ const TopCard = ({ title, cardContent }) => {
       }}
     >
       <div className="pad20 strong" style={{ textAlign: 'center', justifyContent: 'center' }}>
-        <h2 style={{ color: '#22075e', marginBottom: 0, marginTop: 0 }}>{title}</h2>
+        <h2 style={{ color: '#0f172a', marginBottom: 0, marginTop: 0 }}>{title}</h2>
       </div>
       {/* <Divider style={{ padding: 0, margin: 0 }}></Divider>
       <div className="pad15" style={{ textAlign: 'center', justifyContent: 'center' }}>

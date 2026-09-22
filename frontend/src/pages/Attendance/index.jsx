@@ -17,11 +17,14 @@ import {
 } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
+import { parseAttendanceDate } from "@/utils/parseAttendanceDate";
+import { getStatusFromHours } from "@/utils/attendanceStatusRules";
 import {
   getEmployees,
   getAttendance,
   createAttendance,
   updateAttendance,
+  reconcileWorkerAttendance,
 } from "./attendanceApi";
 import EmployeeTimesheetPanel from "./EmployeeTimesheetPanel";
 
@@ -56,19 +59,29 @@ export default function Attendance() {
 
   const [editingRecord, setEditingRecord] = useState(null);
 
-  const [selectedEmployee, setSelectedEmployee] = useState("all");
-  const [viewType, setViewType] = useState("daily");
-  const [selectedDate, setSelectedDate] = useState(dayjs());
-  const [selectedWeek, setSelectedWeek] = useState(dayjs());
-  const [selectedMonth, setSelectedMonth] = useState(dayjs());
-  const [customRange, setCustomRange] = useState([]);
+  const [draftEmployee, setDraftEmployee] = useState("all");
+  const [draftViewType, setDraftViewType] = useState("daily");
+  const [draftDate, setDraftDate] = useState(() => dayjs());
+  const [draftWeek, setDraftWeek] = useState(() => dayjs());
+  const [draftMonth, setDraftMonth] = useState(() => dayjs());
+  const [draftCustomRange, setDraftCustomRange] = useState([]);
+
+  const [appliedEmployee, setAppliedEmployee] = useState("all");
+  const [appliedViewType, setAppliedViewType] = useState("daily");
+  const [appliedDate, setAppliedDate] = useState(() => dayjs());
+  const [appliedWeek, setAppliedWeek] = useState(() => dayjs());
+  const [appliedMonth, setAppliedMonth] = useState(() => dayjs());
+  const [appliedCustomRange, setAppliedCustomRange] = useState([]);
+  const [filtersApplied, setFiltersApplied] = useState(false);
 
   useEffect(() => {
     loadInitialData();
   }, []);
 
   const loadInitialData = async () => {
-    await Promise.all([fetchEmployees(), fetchAttendance()]);
+    if (currentUserRole === "admin") {
+      await fetchEmployees();
+    }
   };
 
   const fetchEmployees = async () => {
@@ -86,7 +99,16 @@ export default function Attendance() {
   const fetchAttendance = async () => {
     try {
       setLoading(true);
-      const res = await getAttendance();
+      let res;
+      if (currentUserRole === "admin") {
+        try {
+          res = await reconcileWorkerAttendance();
+        } catch {
+          res = await getAttendance();
+        }
+      } else {
+        res = await getAttendance();
+      }
       setAttendanceData(Array.isArray(res?.result) ? res.result : []);
     } catch (error) {
       setAttendanceData([]);
@@ -96,12 +118,6 @@ export default function Attendance() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const getStatusFromHours = (hours) => {
-    if (hours >= 8) return "Full Day";
-    if (hours > 0) return "Half Day";
-    return "Absent";
   };
 
   const getStatusColor = (status) => {
@@ -116,36 +132,52 @@ export default function Attendance() {
     return +(totalMinutes / 60).toFixed(2);
   };
 
-  const isDateInSelectedFilter = (dateStr) => {
-    const recordDate = dayjs(dateStr, "DD-MM-YYYY");
+  const isDateInAppliedFilter = (dateStr) => {
+    const recordDate = parseAttendanceDate(dateStr);
+    if (!recordDate) return false;
 
-    if (viewType === "daily") return recordDate.isSame(selectedDate, "day");
+    if (appliedViewType === "daily") {
+      const anchor =
+        appliedDate && dayjs(appliedDate).isValid() ? dayjs(appliedDate) : dayjs();
+      return recordDate.isSame(anchor, "day");
+    }
 
-    if (viewType === "weekly") {
-      const startOfWeek = selectedWeek.startOf("week");
-      const endOfWeek = selectedWeek.endOf("week");
+    if (appliedViewType === "weekly") {
+      const anchor =
+        appliedWeek && dayjs(appliedWeek).isValid() ? dayjs(appliedWeek) : dayjs();
+      const startOfWeek = anchor.startOf("week");
+      const endOfWeek = anchor.endOf("week");
       return (
-        (recordDate.isAfter(startOfWeek, "day") ||
-          recordDate.isSame(startOfWeek, "day")) &&
-        (recordDate.isBefore(endOfWeek, "day") ||
-          recordDate.isSame(endOfWeek, "day"))
+        !recordDate.isBefore(startOfWeek, "day") && !recordDate.isAfter(endOfWeek, "day")
       );
     }
 
-    if (viewType === "monthly") {
-      return recordDate.isSame(selectedMonth, "month");
+    if (appliedViewType === "monthly") {
+      const anchor =
+        appliedMonth && dayjs(appliedMonth).isValid() ? dayjs(appliedMonth) : dayjs();
+      return recordDate.isSame(anchor, "month");
     }
 
-    if (viewType === "custom" && customRange?.length === 2) {
-      const start = customRange[0].startOf("day");
-      const end = customRange[1].endOf("day");
-      return (
-        (recordDate.isAfter(start, "day") || recordDate.isSame(start, "day")) &&
-        (recordDate.isBefore(end, "day") || recordDate.isSame(end, "day"))
-      );
+    if (appliedViewType === "custom") {
+      if (!appliedCustomRange?.[0] || !appliedCustomRange?.[1]) return false;
+      const start = dayjs(appliedCustomRange[0]).startOf("day");
+      const end = dayjs(appliedCustomRange[1]).endOf("day");
+      if (!start.isValid() || !end.isValid()) return false;
+      return !recordDate.isBefore(start, "day") && !recordDate.isAfter(end, "day");
     }
 
     return true;
+  };
+
+  const handleApplyFilters = async () => {
+    setAppliedEmployee(draftEmployee);
+    setAppliedViewType(draftViewType);
+    setAppliedDate(draftDate);
+    setAppliedWeek(draftWeek);
+    setAppliedMonth(draftMonth);
+    setAppliedCustomRange(draftCustomRange);
+    setFiltersApplied(true);
+    await fetchAttendance();
   };
 
   const activeEmployees = useMemo(
@@ -154,31 +186,39 @@ export default function Attendance() {
   );
 
   const filteredAttendance = useMemo(() => {
+    if (!filtersApplied) {
+      return [];
+    }
+
     let result = [...attendanceData];
 
     if (currentUserRole === "worker") {
       result = result.filter((item) => item.workerEmail === currentWorkerEmail);
     }
 
-    if (selectedEmployee !== "all" && currentUserRole === "admin") {
-      result = result.filter((item) => item.workerEmail === selectedEmployee);
+    if (appliedEmployee !== "all" && currentUserRole === "admin") {
+      const email = String(appliedEmployee).toLowerCase();
+      result = result.filter(
+        (item) => String(item.workerEmail || "").toLowerCase() === email
+      );
     }
 
-    result = result.filter((item) => isDateInSelectedFilter(item.date));
+    result = result.filter((item) => isDateInAppliedFilter(item.date));
 
     return result.sort(
       (a, b) =>
-        dayjs(b.date, "DD-MM-YYYY").valueOf() -
-        dayjs(a.date, "DD-MM-YYYY").valueOf()
+        (parseAttendanceDate(b.date)?.valueOf() ?? 0) -
+        (parseAttendanceDate(a.date)?.valueOf() ?? 0)
     );
   }, [
     attendanceData,
-    selectedEmployee,
-    viewType,
-    selectedDate,
-    selectedWeek,
-    selectedMonth,
-    customRange,
+    filtersApplied,
+    appliedEmployee,
+    appliedViewType,
+    appliedDate,
+    appliedWeek,
+    appliedMonth,
+    appliedCustomRange,
     currentUserRole,
     currentWorkerEmail,
   ]);
@@ -247,7 +287,9 @@ export default function Attendance() {
         message.success(res?.message || "Attendance added successfully");
         attendanceForm.resetFields();
         setAttendanceModalOpen(false);
-        await fetchAttendance();
+        if (filtersApplied) {
+          await fetchAttendance();
+        }
       } else {
         message.error(res?.message || "Failed to add attendance");
       }
@@ -264,7 +306,7 @@ export default function Attendance() {
 
     editAttendanceForm.setFieldsValue({
       workerEmail: record.workerEmail,
-      date: record.date ? dayjs(record.date, "DD-MM-YYYY") : null,
+      date: record.date ? parseAttendanceDate(record.date) : null,
       checkin: record.checkin ? dayjs(record.checkin, "HH:mm") : null,
       checkout: record.checkout ? dayjs(record.checkout, "HH:mm") : null,
     });
@@ -318,7 +360,9 @@ export default function Attendance() {
         setEditingRecord(null);
         editAttendanceForm.resetFields();
         message.success(res?.message || "Attendance updated successfully");
-        await fetchAttendance();
+        if (filtersApplied) {
+          await fetchAttendance();
+        }
       } else {
         message.error(res?.message || "Failed to update attendance");
       }
@@ -441,8 +485,8 @@ export default function Attendance() {
                 showSearch
                 optionFilterProp="children"
                 style={{ width: "100%", marginTop: 6 }}
-                value={selectedEmployee}
-                onChange={setSelectedEmployee}
+                value={draftEmployee}
+                onChange={setDraftEmployee}
                 placeholder="Select employee"
                 filterOption={(input, option) =>
                   (option?.children ?? "")
@@ -465,8 +509,8 @@ export default function Attendance() {
             <Text strong>View Type</Text>
             <Select
               style={{ width: "100%", marginTop: 6 }}
-              value={viewType}
-              onChange={setViewType}
+              value={draftViewType}
+              onChange={setDraftViewType}
             >
               <Option value="daily">Daily</Option>
               <Option value="weekly">Weekly</Option>
@@ -475,54 +519,74 @@ export default function Attendance() {
             </Select>
           </Col>
 
-          {viewType === "daily" && (
+          {draftViewType === "daily" && (
             <Col xs={24} sm={12} md={6}>
               <Text strong>Select Date</Text>
               <DatePicker
                 style={{ width: "100%", marginTop: 6 }}
-                value={selectedDate}
-                onChange={(value) => setSelectedDate(value)}
+                value={draftDate}
+                onChange={(value) => setDraftDate(value || dayjs())}
                 format="DD-MM-YYYY"
+                allowClear={false}
               />
             </Col>
           )}
 
-          {viewType === "weekly" && (
+          {draftViewType === "weekly" && (
             <Col xs={24} sm={12} md={6}>
               <Text strong>Select Week</Text>
               <DatePicker
                 style={{ width: "100%", marginTop: 6 }}
-                value={selectedWeek}
-                onChange={(value) => setSelectedWeek(value)}
+                value={draftWeek}
+                onChange={(value) => setDraftWeek(value || dayjs())}
                 format="DD-MM-YYYY"
+                allowClear={false}
               />
             </Col>
           )}
 
-          {viewType === "monthly" && (
+          {draftViewType === "monthly" && (
             <Col xs={24} sm={12} md={6}>
               <Text strong>Select Month</Text>
               <DatePicker
                 picker="month"
                 style={{ width: "100%", marginTop: 6 }}
-                value={selectedMonth}
-                onChange={(value) => setSelectedMonth(value)}
+                value={draftMonth}
+                onChange={(value) =>
+                  setDraftMonth(value ? value.startOf("month") : dayjs().startOf("month"))
+                }
                 format="MM-YYYY"
+                allowClear={false}
               />
             </Col>
           )}
 
-          {viewType === "custom" && (
+          {draftViewType === "custom" && (
             <Col xs={24} sm={24} md={10}>
               <Text strong>Custom Range</Text>
               <RangePicker
                 style={{ width: "100%", marginTop: 6 }}
-                value={customRange}
-                onChange={(value) => setCustomRange(value || [])}
+                value={draftCustomRange}
+                onChange={(value) => setDraftCustomRange(value || [])}
                 format="DD-MM-YYYY"
               />
             </Col>
           )}
+
+          <Col xs={24} sm={12} md={4}>
+            <Text strong style={{ display: "block", visibility: "hidden" }}>
+              Apply
+            </Text>
+            <Button
+              type="primary"
+              block
+              loading={loading}
+              onClick={handleApplyFilters}
+              style={{ marginTop: 6 }}
+            >
+              Apply
+            </Button>
+          </Col>
         </Row>
       </Card>
 
@@ -575,7 +639,13 @@ export default function Attendance() {
         />
       ) : (
         <Card>
-          <Empty description="No attendance records found" />
+          <Empty
+            description={
+              filtersApplied
+                ? "No attendance records found"
+                : "Select filters and click Apply to view attendance"
+            }
+          />
         </Card>
       )}
 

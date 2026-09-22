@@ -4,7 +4,7 @@
   align-items: center;
   justify-content: center;
   padding: 24px 16px;
-  background: linear-gradient(145deg, #eef4ff 0%, #f5f7fa 45%, #f0f2f5 100%);
+  background: linear-gradient(145deg, #e8f4f4 0%, #eef1f6 42%, #f8fafc 100%);
 }
 
 .login-card {
@@ -60,14 +60,14 @@
 }
 
 .login-role-tile--active {
-  border-color: #1677ff;
+  border-color: #339393;
   background: #e6f4ff;
   box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.15);
 }
 
 .login-role-tile__icon {
   font-size: 18px;
-  color: #1677ff;
+  color: #339393;
   line-height: 1;
 }
 

@@ -217,7 +217,7 @@ export default function TeamChatDashboard() {
                             ? "#fff1f0"
                             : "transparent",
                         borderLeft: active
-                          ? "3px solid #1677ff"
+                          ? "3px solid #339393"
                           : unread
                             ? "3px solid #ff4d4f"
                             : "3px solid transparent",

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Button,
   Card,
@@ -39,6 +39,57 @@ const formatMinutes = (mins) => {
   const rem = m % 60;
   return `${h}h ${String(rem).padStart(2, "0")}m`;
 };
+
+const uniqueColumnFilters = (items, getValue) => {
+  const values = [...new Set(items.map(getValue).filter(Boolean))].sort();
+  return values.map((v) => ({ text: String(v), value: v }));
+};
+
+const textColumnFilter = (placeholder, getSearchText) => ({
+  filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
+    <div style={{ padding: 8 }} onKeyDown={(e) => e.stopPropagation()}>
+      <Input
+        placeholder={placeholder}
+        value={selectedKeys[0]}
+        onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+        onPressEnter={() => confirm()}
+        style={{ marginBottom: 8, display: "block" }}
+        allowClear
+      />
+      <Space>
+        <Button type="primary" onClick={() => confirm()} size="small">
+          Search
+        </Button>
+        <Button
+          onClick={() => {
+            clearFilters?.();
+            confirm();
+          }}
+          size="small"
+        >
+          Reset
+        </Button>
+      </Space>
+    </div>
+  ),
+  onFilter: (value, record) => {
+    const hay = String(getSearchText(record) || "").toLowerCase();
+    return hay.includes(String(value).toLowerCase());
+  },
+});
+
+const formatCheckIn = (v) => (v ? dayjs(v).format("DD MMM YYYY HH:mm:ss") : "-");
+const formatCheckOut = (v) => (v ? dayjs(v).format("DD MMM YYYY HH:mm:ss") : "—");
+
+const gpsText = (row) =>
+  row.checkInLatitude != null
+    ? `${Number(row.checkInLatitude).toFixed(4)}, ${Number(row.checkInLongitude).toFixed(4)}`
+    : "-";
+
+const hoursDisplay = (row) =>
+  row.status === "checked_in" ? "On shift" : formatMinutes(row.totalMinutes);
+
+const livenessDisplay = (row) => (row.livenessPassed ? `Passed ${row.livenessScore || 0}%` : "N/A");
 
 export default function EmployeeTimesheetPanel() {
   const [loading, setLoading] = useState(false);
@@ -124,14 +175,55 @@ export default function EmployeeTimesheetPanel() {
     );
   };
 
-  const columns = [
+  const workerIdFilters = useMemo(
+    () => uniqueColumnFilters(rows, (r) => r.workerId),
+    [rows]
+  );
+
+  const employeeNameFilters = useMemo(
+    () => uniqueColumnFilters(rows, (r) => r.workerName),
+    [rows]
+  );
+
+  const hoursFilters = useMemo(() => {
+    const values = new Set();
+    rows.forEach((r) => values.add(hoursDisplay(r)));
+    return [...values].sort().map((v) => ({ text: v, value: v }));
+  }, [rows]);
+
+  const livenessFilters = useMemo(() => {
+    const values = new Set(rows.map((r) => livenessDisplay(r)));
+    return [...values].sort().map((v) => ({ text: v, value: v }));
+  }, [rows]);
+
+  const statusFilters = useMemo(
+    () => [
+      { text: "Checked in", value: "checked_in" },
+      { text: "Checked out", value: "checked_out" },
+    ],
+    []
+  );
+
+  const columns = useMemo(
+    () => [
+    {
+      title: "Employee ID",
+      dataIndex: "workerId",
+      width: 110,
+      filters: workerIdFilters,
+      onFilter: (value, record) => record.workerId === value,
+      render: (v) => v || "-",
+    },
     {
       title: "Employee",
+      dataIndex: "workerName",
+      filters: employeeNameFilters,
+      onFilter: (value, record) => record.workerName === value,
       render: (_, row) => (
         <div>
           <div style={{ fontWeight: 600 }}>{row.workerName || "-"}</div>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {row.workerId || "-"} · {row.workerEmail || "-"}
+            {row.workerEmail || "-"}
           </Text>
         </div>
       ),
@@ -139,15 +231,17 @@ export default function EmployeeTimesheetPanel() {
     {
       title: "Check-in",
       dataIndex: "checkInTime",
-      render: (v) => (v ? dayjs(v).format("DD MMM YYYY HH:mm:ss") : "-"),
+      render: (v) => formatCheckIn(v),
     },
     {
       title: "Check-out",
       dataIndex: "checkOutTime",
-      render: (v) => (v ? dayjs(v).format("DD MMM YYYY HH:mm:ss") : "—"),
+      render: (v) => formatCheckOut(v),
     },
     {
       title: "Hours",
+      filters: hoursFilters,
+      onFilter: (value, record) => hoursDisplay(record) === value,
       render: (_, row) =>
         row.status === "checked_in" ? (
           <Tag color="processing">On shift</Tag>
@@ -165,13 +259,13 @@ export default function EmployeeTimesheetPanel() {
     },
     {
       title: "GPS (in)",
-      render: (_, row) =>
-        row.checkInLatitude != null
-          ? `${Number(row.checkInLatitude).toFixed(4)}, ${Number(row.checkInLongitude).toFixed(4)}`
-          : "-",
+      ...textColumnFilter("Search coordinates", gpsText),
+      render: (_, row) => gpsText(row),
     },
     {
       title: "Liveness",
+      filters: livenessFilters,
+      onFilter: (value, record) => livenessDisplay(record) === value,
       render: (_, row) =>
         row.livenessPassed ? (
           <Tag color="green">{row.livenessScore || 0}%</Tag>
@@ -182,6 +276,8 @@ export default function EmployeeTimesheetPanel() {
     {
       title: "Status",
       dataIndex: "status",
+      filters: statusFilters,
+      onFilter: (value, record) => record.status === value,
       render: (v) => (
         <Tag color={v === "checked_in" ? "green" : "default"}>
           {v === "checked_in" ? "Checked in" : "Checked out"}
@@ -214,7 +310,16 @@ export default function EmployeeTimesheetPanel() {
         );
       },
     },
-  ];
+  ],
+    [
+      deletingId,
+      employeeNameFilters,
+      hoursFilters,
+      livenessFilters,
+      statusFilters,
+      workerIdFilters,
+    ]
+  );
 
   return (
     <Card style={{ marginTop: 16 }}>

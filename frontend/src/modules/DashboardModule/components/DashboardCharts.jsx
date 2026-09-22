@@ -18,7 +18,7 @@ import {
 } from 'recharts';
 
 const COLORS = [
-  '#1677ff',
+  '#339393',
   '#52c41a',
   '#fa8c16',
   '#722ed1',
@@ -64,7 +64,7 @@ export function DashboardBarChart({
   loading,
   dataKey = 'count',
   labelKey = 'label',
-  color = '#1677ff',
+  color = '#339393',
   isMoney = false,
 }) {
   const chartData = data.map((row) => ({
@@ -126,7 +126,7 @@ export function DashboardAreaChart({
   series = [],
   loading,
   valueKey = 'count',
-  color = '#1677ff',
+  color = '#339393',
   isMoney = false,
   name = 'Count',
 }) {

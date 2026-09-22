@@ -18,6 +18,16 @@ export const createLeave = async (payload) => {
   return res.data?.result;
 };
 
+export const getMyLeaves = async () => {
+  const res = await axios.get(`${API}/mine`, { headers: authHeaders() });
+  return res.data?.result || [];
+};
+
+export const applyLeave = async (payload) => {
+  const res = await axios.post(`${API}/apply`, payload, { headers: authHeaders() });
+  return res.data?.result;
+};
+
 export const approveLeave = async (id) => {
   const res = await axios.post(`${API}/approve/${id}`, {}, { headers: authHeaders() });
   return res.data;
