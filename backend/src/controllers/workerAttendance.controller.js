@@ -1,5 +1,6 @@
 const WorkerAttendanceSession = require("../models/appModels/WorkerAttendanceSession");
 const { persistDataUrl, deletePersistedUrl } = require("../utils/persistUpload");
+const { syncAttendanceFromSession } = require("../utils/syncAttendanceFromSession");
 
 const getActor = (req) => ({
   id: req.user?._id || null,
@@ -238,6 +239,12 @@ exports.checkOut = async (req, res) => {
       Math.round((now.getTime() - new Date(open.checkInTime).getTime()) / 60000)
     );
     await open.save();
+
+    try {
+      await syncAttendanceFromSession(open);
+    } catch (syncErr) {
+      console.error("Attendance sync after check-out failed:", syncErr.message);
+    }
 
     return res.json({
       success: true,

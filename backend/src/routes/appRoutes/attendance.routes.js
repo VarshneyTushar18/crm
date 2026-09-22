@@ -5,6 +5,7 @@ const attendanceController = require("@/controllers/attendance.controller");
 const workerAttendanceController = require("@/controllers/workerAttendance.controller");
 
 router.get("/list", attendanceController.list);
+router.post("/reconcile-worker-sessions", attendanceController.reconcileWorkerSessions);
 router.get("/read/:id", attendanceController.read);
 router.post("/create", attendanceController.create);
 router.patch("/update/:id", attendanceController.update);

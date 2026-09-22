@@ -1,12 +1,8 @@
 const mongoose = require("mongoose");
 const Attendance = mongoose.model("Attendance");
 const Employee = mongoose.model("Employee");
-
-function getStatusFromHours(hours) {
-  if (Number(hours) >= 8) return "Full Day";
-  if (Number(hours) > 0) return "Half Day";
-  return "Absent";
-}
+const { reconcileAllWorkerSessions } = require("../utils/syncAttendanceFromSession");
+const { getStatusFromHours } = require("../utils/attendanceStatusRules");
 
 function parseTimeToMinutes(timeStr) {
   if (!timeStr || typeof timeStr !== "string") return null;
@@ -171,6 +167,37 @@ const list = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch attendance",
+      error: error.message,
+    });
+  }
+};
+
+const reconcileWorkerSessions = async (req, res) => {
+  try {
+    const role = String(req.user?.role || "").trim();
+    if (!["admin", "siteEngineer"].includes(role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Admin / HR access only",
+      });
+    }
+
+    const summary = await reconcileAllWorkerSessions();
+    const attendance = await Attendance.find({})
+      .sort({ createdAt: -1, _id: -1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      message: "Worker punch attendance synced",
+      result: attendance,
+      sync: summary,
+    });
+  } catch (error) {
+    console.error("Reconcile worker sessions error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to sync worker attendance",
       error: error.message,
     });
   }
@@ -364,4 +391,5 @@ module.exports = {
   read,
   update,
   delete: remove,
+  reconcileWorkerSessions,
 };
