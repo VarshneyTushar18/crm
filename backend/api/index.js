@@ -7,7 +7,6 @@ moduleAlias.addAliases({
 });
 
 const mongoose = require("mongoose");
-const { globSync } = require("glob");
 const { applyCorsHeaders } = require("../src/utils/corsOrigins");
 
 let appInstance = null;
@@ -40,14 +39,7 @@ async function initialize() {
       await mongoose.connect(process.env.DATABASE);
     }
 
-    const rootDir = path.resolve(__dirname, "../src");
-    const modelsFiles = globSync(
-      path.join(rootDir, "models/**/*.js").replace(/\\/g, "/")
-    );
-    for (const filePath of modelsFiles) {
-      require(path.resolve(filePath));
-    }
-    require(path.resolve(rootDir, "models/appModels/Job.js"));
+    require("../src/models/loadModels");
 
     appInstance = require("../src/app");
     return appInstance;

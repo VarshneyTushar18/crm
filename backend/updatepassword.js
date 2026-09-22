@@ -1,4 +1,4 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 const newPassword = "tech2globe@089";  // your chosen password
 const saltRounds = 10;

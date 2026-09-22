@@ -1,11 +1,17 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": null,
+  "installCommand": "npm install",
+  "outputDirectory": ".",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
-    { "source": "/api", "destination": "/api" }
+    { "source": "/api", "destination": "/api" },
+    { "source": "/(.*)", "destination": "/api" }
   ],
   "headers": [
     {
-      "source": "/api/(.*)",
+      "source": "/(.*)",
       "headers": [
         { "key": "Access-Control-Allow-Credentials", "value": "true" },
         { "key": "Access-Control-Allow-Origin", "value": "https://crm-front-dun.vercel.app" },
@@ -19,5 +25,10 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "**/*.js": {
+      "includeFiles": "src/**"
+    }
+  }
 }
