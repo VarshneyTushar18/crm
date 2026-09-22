@@ -430,7 +430,7 @@ export default function WorkerDashboardHome() {
             )}
             <Space wrap style={{ marginTop: 8 }}>
               <Tag color="green">Present</Tag>
-              <Tag color="blue">Leave</Tag>
+              <Tag color="gold">Leave</Tag>
               <Tag color="red">Absent</Tag>
             </Space>
           </Card>
