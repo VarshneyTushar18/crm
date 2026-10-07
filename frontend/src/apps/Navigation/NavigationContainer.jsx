@@ -7,10 +7,16 @@ import useLanguage from "@/locale/useLanguage";
 import useResponsive from "@/hooks/useResponsive";
 
 import BrandLogo from "@/components/BrandLogo";
+
 import {
   SITE_ENGINEER_MENU_KEYS,
   SITE_ENGINEER_HOME,
 } from "@/config/siteEngineerAccess";
+
+import {
+  viewMyAppointmentLetter,
+  downloadMyAppointmentLetter,
+} from "@/api/workerEmployeeApi";
 
 import {
   SettingOutlined,
@@ -80,6 +86,21 @@ const getWorkerItems = (go) => [
     icon: <FileTextOutlined />,
     label: <Link to={go("/leave")}>My Leave</Link>,
   },
+  {
+    key: "appointment-letter",
+    icon: <FileTextOutlined />,
+    label: "Appointment Letter",
+    children: [
+      {
+        key: "appointment-view",
+        label: "View",
+      },
+      {
+        key: "appointment-download",
+        label: "Download",
+      },
+    ],
+  },
 ];
 
 const getSiteEngineerItems = (go) => [
@@ -139,10 +160,16 @@ const filterMenuForRole = (items, role) => {
         return SITE_ENGINEER_MENU_KEYS.has(item.key) ? item : null;
       }
 
-      const children = item.children.filter((child) => SITE_ENGINEER_MENU_KEYS.has(child.key));
+      const children = item.children.filter((child) =>
+        SITE_ENGINEER_MENU_KEYS.has(child.key)
+      );
+
       if (!children.length) return null;
 
-      return { ...item, children };
+      return {
+        ...item,
+        children,
+      };
     })
     .filter(Boolean);
 };
@@ -179,7 +206,12 @@ export default function Navigation({
   return <Sidebar collapsible={false} basePath={basePath} />;
 }
 
-function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
+function Sidebar({
+  collapsible,
+  isMobile = false,
+  basePath = "",
+  onNavigate,
+}) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -198,8 +230,13 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
   const goWithJob = (p) => {
     const path = go(p);
     const jobId = localStorage.getItem("activeJobId");
-    const pinned = localStorage.getItem("jobPinnedFromTimeline") === "true";
-    if (pinned && jobId) return `${path}?jobId=${jobId}`;
+    const pinned =
+      localStorage.getItem("jobPinnedFromTimeline") === "true";
+
+    if (pinned && jobId) {
+      return `${path}?jobId=${jobId}`;
+    }
+
     return path;
   };
 
@@ -208,226 +245,343 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
       if (userRole === "worker") {
         return getWorkerItems(go);
       }
+
       if (userRole === "siteEngineer") {
         return getSiteEngineerItems(go);
       }
+
       return filterMenuForRole(
         [
-      {
-        key: "dashboard",
-        icon: <DashboardOutlined />,
-        label: <Link to={go("/")}>{translate("Dashboard") || "Dashboard"}</Link>,
-      },
-      {
-        key: "sales-group",
-        icon: <AppstoreOutlined />,
-        label: "Sales",
-        children: [
           {
-            key: "lead",
-            icon: <UserOutlined />,
-            label: <Link to={go("/lead")}>Leads</Link>,
-          },
-          {
-            key: "quotes",
-            icon: <FileTextOutlined />,
-            label: <Link to={go("/quotes")}>Quotes</Link>,
-          },
-          {
-            key: "jobs",
-            icon: <FileOutlined />,
-            label: <Link to={go("/jobs")}>Jobs</Link>,
-          },
-          {
-            key: "team-chat",
-            icon: <MessageOutlined />,
-            label: <Link to={go("/team-chat")}>Team Chat</Link>,
-          },
-        ],
-      },
-      {
-        key: "planning-group",
-        icon: <FolderOpenOutlined />,
-        label: "Planning",
-        children: [
-          {
-            key: "site-measurement",
-            icon: <TagOutlined />,
-            label: <Link to={goWithJob("/site-measurement")}>Site Measurement</Link>,
-          },
-          {
-            key: "planning",
-            icon: <TagOutlined />,
-            label: <Link to={goWithJob("/planning")}>Planning</Link>,
-          },
-          {
-            key: "scheduling",
-            icon: <CalendarOutlined />,
-            label: <Link to={goWithJob("/scheduling")}>Scheduling</Link>,
-          },
-          {
-            key: "drafting",
-            icon: <FileTextOutlined />,
-            label: <Link to={goWithJob("/drafting")}>Drafting</Link>,
-          },
-          {
-            key: "site-engineer",
-            icon: <AuditOutlined />,
-            label: <Link to={goWithJob("/site-engineer")}>SE Approvals</Link>,
-          },
-          {
-            key: "worker-tasks",
-            icon: <TagsOutlined />,
-            label: <Link to={go("/worker-tasks")}>Task Management</Link>,
-          },
-        ],
-      },
-      {
-        key: "production-group",
-        icon: <BuildOutlined />,
-        label: "Production",
-        children: [
-          {
-            key: "job-scheduling",
-            icon: <FilterOutlined />,
-            label: <Link to={goWithJob("/kanban")}>Job Scheduling</Link>,
-          },
-          {
-            key: "material-purchase",
-            icon: <ToolOutlined />,
-            label: <Link to={goWithJob("/material-purchase")}>Material Purchase</Link>,
-          },
-          {
-            key: "fabrication",
-            icon: <TagsOutlined />,
-            label: <Link to={goWithJob("/fabrication")}>Fabrication</Link>,
-          },
-          {
-            key: "qc",
-            icon: <ContainerOutlined />,
-            label: <Link to={goWithJob("/qc")}>Quality Control</Link>,
-          },
-        ],
-      },
-      {
-        key: "execution-group",
-        icon: <DeploymentUnitOutlined />,
-        label: "Execution",
-        children: [
-          {
-            key: "installation",
-            icon: <ShopOutlined />,
-            label: <Link to={goWithJob("/installation")}>Installation</Link>,
-          },
-          {
-            key: "defects-snags",
-            icon: <BugOutlined />,
-            label: <Link to={goWithJob("/defects-snags")}>Defects & Snags</Link>,
-          },
-        ],
-      },
-      {
-        key: "business-group",
-        icon: <TeamOutlined />,
-        label: "Business",
-        children: [
-          {
-            key: "customer",
-            icon: <CustomerServiceOutlined />,
-            label: <Link to={go("/customer")}>Customers</Link>,
-          },
-          {
-            key: "contact-requests",
-            icon: <MailOutlined />,
-            label: <Link to={go("/contact-requests")}>Contact Requests</Link>,
-          },
-          {
-            key: "notification-receipts",
-            icon: <MailOutlined />,
-            label: <Link to={go("/notification-receipts")}>Notification Receipts</Link>,
-          },
-          {
-            key: "suppliers",
-            icon: <ShopOutlined />,
-            label: <Link to={go("/suppliers")}>Suppliers</Link>,
-          },
-          {
-            key: "rfq",
-            icon: <FileTextOutlined />,
-            label: <Link to={go("/rfq")}>RFQ</Link>,
-          },
-          {
-            key: "purchase-orders",
-            icon: <ContainerOutlined />,
-            label: <Link to={go("/purchase-orders")}>Purchase Orders</Link>,
-          },
-          {
-            key: "sites",
-            icon: <DeploymentUnitOutlined />,
-            label: <Link to={go("/sites")}>Sites</Link>,
-          },
-          {
-            key: "invoice",
-            icon: <ContainerOutlined />,
-            label: <Link to={go("/invoice")}>Invoices</Link>,
-          },
-          {
-            key: "payment",
-            icon: <CreditCardOutlined />,
-            label: <Link to={go("/payment")}>Payments</Link>,
-          },
-        ],
-      },
-      {
-        key: "hr-group",
-        icon: <UserOutlined />,
-        label: "HR",
-        children: [
-          {
-            key: "hr-dashboard",
+            key: "dashboard",
             icon: <DashboardOutlined />,
-            label: <Link to={go("/hr-dashboard")}>Dashboard</Link>,
+            label: (
+              <Link to={go("/")}>
+                {translate("Dashboard") || "Dashboard"}
+              </Link>
+            ),
           },
+
           {
-            key: "employee",
+            key: "sales-group",
+            icon: <AppstoreOutlined />,
+            label: "Sales",
+            children: [
+              {
+                key: "lead",
+                icon: <UserOutlined />,
+                label: <Link to={go("/lead")}>Leads</Link>,
+              },
+              {
+                key: "quotes",
+                icon: <FileTextOutlined />,
+                label: <Link to={go("/quotes")}>Quotes</Link>,
+              },
+              {
+                key: "jobs",
+                icon: <FileOutlined />,
+                label: <Link to={go("/jobs")}>Jobs</Link>,
+              },
+              {
+                key: "team-chat",
+                icon: <MessageOutlined />,
+                label: (
+                  <Link to={go("/team-chat")}>Team Chat</Link>
+                ),
+              },
+            ],
+          },
+
+          {
+            key: "planning-group",
+            icon: <FolderOpenOutlined />,
+            label: "Planning",
+            children: [
+              {
+                key: "site-measurement",
+                icon: <TagOutlined />,
+                label: (
+                  <Link to={goWithJob("/site-measurement")}>
+                    Site Measurement
+                  </Link>
+                ),
+              },
+              {
+                key: "planning",
+                icon: <TagOutlined />,
+                label: (
+                  <Link to={goWithJob("/planning")}>
+                    Planning
+                  </Link>
+                ),
+              },
+              {
+                key: "scheduling",
+                icon: <CalendarOutlined />,
+                label: (
+                  <Link to={goWithJob("/scheduling")}>
+                    Scheduling
+                  </Link>
+                ),
+              },
+              {
+                key: "drafting",
+                icon: <FileTextOutlined />,
+                label: (
+                  <Link to={goWithJob("/drafting")}>
+                    Drafting
+                  </Link>
+                ),
+              },
+              {
+                key: "site-engineer",
+                icon: <AuditOutlined />,
+                label: (
+                  <Link to={goWithJob("/site-engineer")}>
+                    SE Approvals
+                  </Link>
+                ),
+              },
+              {
+                key: "worker-tasks",
+                icon: <TagsOutlined />,
+                label: (
+                  <Link to={go("/worker-tasks")}>
+                    Task Management
+                  </Link>
+                ),
+              },
+            ],
+          },
+
+          {
+            key: "production-group",
+            icon: <BuildOutlined />,
+            label: "Production",
+            children: [
+              {
+                key: "job-scheduling",
+                icon: <FilterOutlined />,
+                label: (
+                  <Link to={goWithJob("/kanban")}>
+                    Job Scheduling
+                  </Link>
+                ),
+              },
+              {
+                key: "material-purchase",
+                icon: <ToolOutlined />,
+                label: (
+                  <Link to={goWithJob("/material-purchase")}>
+                    Material Purchase
+                  </Link>
+                ),
+              },
+              {
+                key: "fabrication",
+                icon: <TagsOutlined />,
+                label: (
+                  <Link to={goWithJob("/fabrication")}>
+                    Fabrication
+                  </Link>
+                ),
+              },
+              {
+                key: "qc",
+                icon: <ContainerOutlined />,
+                label: (
+                  <Link to={goWithJob("/qc")}>
+                    Quality Control
+                  </Link>
+                ),
+              },
+            ],
+          },
+
+          {
+            key: "execution-group",
+            icon: <DeploymentUnitOutlined />,
+            label: "Execution",
+            children: [
+              {
+                key: "installation",
+                icon: <ShopOutlined />,
+                label: (
+                  <Link to={goWithJob("/installation")}>
+                    Installation
+                  </Link>
+                ),
+              },
+              {
+                key: "defects-snags",
+                icon: <BugOutlined />,
+                label: (
+                  <Link to={goWithJob("/defects-snags")}>
+                    Defects & Snags
+                  </Link>
+                ),
+              },
+            ],
+          },
+
+          {
+            key: "business-group",
+            icon: <TeamOutlined />,
+            label: "Business",
+            children: [
+              {
+                key: "customer",
+                icon: <CustomerServiceOutlined />,
+                label: (
+                  <Link to={go("/customer")}>
+                    Customers
+                  </Link>
+                ),
+              },
+              {
+                key: "contact-requests",
+                icon: <MailOutlined />,
+                label: (
+                  <Link to={go("/contact-requests")}>
+                    Contact Requests
+                  </Link>
+                ),
+              },
+              {
+                key: "notification-receipts",
+                icon: <MailOutlined />,
+                label: (
+                  <Link to={go("/notification-receipts")}>
+                    Notification Receipts
+                  </Link>
+                ),
+              },
+              {
+                key: "suppliers",
+                icon: <ShopOutlined />,
+                label: (
+                  <Link to={go("/suppliers")}>
+                    Suppliers
+                  </Link>
+                ),
+              },
+              {
+                key: "rfq",
+                icon: <FileTextOutlined />,
+                label: <Link to={go("/rfq")}>RFQ</Link>,
+              },
+              {
+                key: "purchase-orders",
+                icon: <ContainerOutlined />,
+                label: (
+                  <Link to={go("/purchase-orders")}>
+                    Purchase Orders
+                  </Link>
+                ),
+              },
+              {
+                key: "sites",
+                icon: <DeploymentUnitOutlined />,
+                label: (
+                  <Link to={go("/sites")}>Sites</Link>
+                ),
+              },
+              {
+                key: "invoice",
+                icon: <ContainerOutlined />,
+                label: (
+                  <Link to={go("/invoice")}>
+                    Invoices
+                  </Link>
+                ),
+              },
+              {
+                key: "payment",
+                icon: <CreditCardOutlined />,
+                label: (
+                  <Link to={go("/payment")}>
+                    Payments
+                  </Link>
+                ),
+              },
+            ],
+          },
+
+          {
+            key: "hr-group",
             icon: <UserOutlined />,
-            label: <Link to={go("/employee")}>Employee</Link>,
+            label: "HR",
+            children: [
+              {
+                key: "hr-dashboard",
+                icon: <DashboardOutlined />,
+                label: (
+                  <Link to={go("/hr-dashboard")}>
+                    Dashboard
+                  </Link>
+                ),
+              },
+              {
+                key: "employee",
+                icon: <UserOutlined />,
+                label: (
+                  <Link to={go("/employee")}>
+                    Employee
+                  </Link>
+                ),
+              },
+              {
+                key: "attendance",
+                icon: <UserOutlined />,
+                label: (
+                  <Link to={go("/attendance")}>
+                    Attendance
+                  </Link>
+                ),
+              },
+              {
+                key: "productivity",
+                icon: <UserOutlined />,
+                label: (
+                  <Link to={go("/productivity")}>
+                    Productivity
+                  </Link>
+                ),
+              },
+              {
+                key: "leave",
+                icon: <CalendarOutlined />,
+                label: (
+                  <Link to={go("/leave")}>Leave</Link>
+                ),
+              },
+            ],
           },
+
           {
-            key: "attendance",
-            icon: <UserOutlined />,
-            label: <Link to={go("/attendance")}>Attendance</Link>,
-          },
-          {
-            key: "productivity",
-            icon: <UserOutlined />,
-            label: <Link to={go("/productivity")}>Productivity</Link>,
-          },
-          {
-            key: "leave",
-            icon: <CalendarOutlined />,
-            label: <Link to={go("/leave")}>Leave</Link>,
-          },
-        ],
-      },
-      {
-        key: "system-group",
-        icon: <SettingOutlined />,
-        label: "System",
-        children: [
-          {
-            key: "settings",
+            key: "system-group",
             icon: <SettingOutlined />,
-            label: <Link to={go("/settings/company")}>Settings</Link>,
-          },
-          {
-            key: "about",
-            icon: <ReconciliationOutlined />,
-            label: <Link to={go("/about")}>About</Link>,
+            label: "System",
+            children: [
+              {
+                key: "settings",
+                icon: <SettingOutlined />,
+                label: (
+                  <Link to={go("/settings/company")}>
+                    Settings
+                  </Link>
+                ),
+              },
+              {
+                key: "about",
+                icon: <ReconciliationOutlined />,
+                label: (
+                  <Link to={go("/about")}>About</Link>
+                ),
+              },
+            ],
           },
         ],
-      },
-    ],
         userRole
       );
     },
@@ -441,30 +595,35 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
     jobs: "sales-group",
     schedule: "",
     tasks: "",
-    leave: "",
     "team-chat": "sales-group",
+
     "site-measurement": "planning-group",
     planning: "planning-group",
     scheduling: "planning-group",
     drafting: "planning-group",
     "site-engineer": "planning-group",
     "worker-tasks": "planning-group",
+
     "job-scheduling": "production-group",
     "material-purchase": "production-group",
     fabrication: "production-group",
     qc: "production-group",
+
     installation: "execution-group",
     "defects-snags": "execution-group",
+
     customer: "business-group",
     "contact-requests": "business-group",
     "notification-receipts": "business-group",
     invoice: "business-group",
     payment: "business-group",
+
     "hr-dashboard": "hr-group",
     employee: "hr-group",
     attendance: "hr-group",
     productivity: "hr-group",
     leave: "hr-group",
+
     settings: "system-group",
     about: "system-group",
   };
@@ -473,10 +632,15 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
     if (!location) return;
 
     const path = location.pathname;
-    const cleaned =
-      basePath && path.startsWith(basePath) ? path.slice(basePath.length) : path;
 
-    let normalized = cleaned.startsWith("/") ? cleaned.slice(1) : cleaned;
+    const cleaned =
+      basePath && path.startsWith(basePath)
+        ? path.slice(basePath.length)
+        : path;
+
+    let normalized = cleaned.startsWith("/")
+      ? cleaned.slice(1)
+      : cleaned;
 
     if (!normalized || normalized === "") {
       normalized = "dashboard";
@@ -493,6 +657,7 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
     setCurrentPath(normalized);
 
     const parentGroup = pathToGroupMap[normalized];
+
     if (parentGroup) {
       setOpenKeys([parentGroup]);
     } else {
@@ -507,7 +672,9 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
       collapsible={collapsible}
       collapsed={collapsible ? isNavMenuClose : collapsible}
       onCollapse={onCollapse}
-      className={`navigation ${isMobile ? "navigation--drawer" : ""}`}
+      className={`navigation ${
+        isMobile ? "navigation--drawer" : ""
+      }`}
       width={256}
       style={{
         overflow: "auto",
@@ -519,15 +686,26 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
         className="logo"
         onClick={() => {
           onNavigate?.();
+
           const role = getStoredUserRole();
-          navigate(role === "siteEngineer" ? SITE_ENGINEER_HOME : go("/"));
+
+          navigate(
+            role === "siteEngineer"
+              ? SITE_ENGINEER_HOME
+              : go("/")
+          );
         }}
         style={{ cursor: "pointer" }}
       >
         <BrandLogo
-          variant={isNavMenuClose ? "sidebarCollapsed" : "sidebar"}
+          variant={
+            isNavMenuClose
+              ? "sidebarCollapsed"
+              : "sidebar"
+          }
         />
       </div>
+
       <Menu
         items={items}
         mode="inline"
@@ -535,8 +713,30 @@ function Sidebar({ collapsible, isMobile = false, basePath = "", onNavigate }) {
         selectedKeys={[currentPath]}
         openKeys={openKeys}
         onOpenChange={setOpenKeys}
-        onClick={() => onNavigate?.()}
-        style={{ width: isMobile ? "100%" : 256 }}
+        onClick={({ key }) => {
+          if (key === "appointment-view") {
+            viewMyAppointmentLetter().catch((error) => {
+              console.error(
+                "Failed to open appointment letter:",
+                error
+              );
+            });
+          }
+
+          if (key === "appointment-download") {
+            downloadMyAppointmentLetter().catch((error) => {
+              console.error(
+                "Failed to download appointment letter:",
+                error
+              );
+            });
+          }
+
+          onNavigate?.();
+        }}
+        style={{
+          width: isMobile ? "100%" : 256,
+        }}
       />
     </Sider>
   );

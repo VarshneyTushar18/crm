@@ -5,6 +5,8 @@ const employeeController = require("@/controllers/employee.controller");
 
 router.get("/list", employeeController.list);
 router.get("/read/:id", employeeController.read);
+router.get("/my-appointment-letter", employeeController.downloadMyAppointmentLetter);
+router.get("/appointment-letter/:id", employeeController.downloadAppointmentLetter);
 router.post("/create", employeeController.create);
 router.patch("/update/:id", employeeController.update);
 router.patch("/reset-password/:id", employeeController.resetPassword);

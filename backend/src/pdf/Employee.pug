@@ -1,0 +1,116 @@
+-
+  const companyDisplayName = (settings.company_name || '').trim() || 'the Company';
+  const workLocation = (settings.company_address || '').trim() || 'the assigned work location';
+  const letterDate = moment().format('DD/MM/YYYY');
+  const employeeName = model.name || '-';
+  const jobTitle = model.designation || '-';
+  const employeeAddress = model.address || '-';
+  const joiningDate = model.joiningDate || '-';
+  const contactLine = [settings.company_phone, settings.company_email, settings.company_website].filter(Boolean).join(' | ');
+  const logoUrl = settings.company_logo && settings.public_server_file
+    ? settings.public_server_file + settings.company_logo
+    : '';
+
+doctype html
+html
+  head
+    meta(charset="utf-8")
+    style.
+      @page {
+        margin: 14mm;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+        color: #000;
+        font-size: 11pt;
+        line-height: 1.55;
+        margin: 0;
+        padding: 0;
+      }
+      .page-frame {
+        border: 1px solid #000;
+        min-height: 260mm;
+        padding: 22px 28px 32px 10px;
+        position: relative;
+      }
+      .logo-row {
+        min-height: 48px;
+        margin-bottom: 8px;
+      }
+      .logo-row img {
+        display: block;
+        height: 44px;
+        max-width: 160px;
+      }
+      h1 {
+        color: #000;
+        font-size: 16pt;
+        font-weight: bold;
+        text-align: center;
+        margin: 24px 0 20px;
+      }
+      p {
+        margin: 0 0 10px;
+      }
+      .letterhead-meta p {
+        margin: 0 0 4px;
+      }
+      ul.terms {
+        margin: 8px 0 14px;
+        padding-left: 22px;
+      }
+      ul.terms li {
+        margin-bottom: 6px;
+      }
+      .signature {
+        margin-top: 18px;
+      }
+  body
+    .page-frame
+      .logo-row
+        if logoUrl
+          img(src=logoUrl alt=companyDisplayName)
+
+      h1 Appointment Letter
+
+      .letterhead-meta
+        if settings.company_address
+          p= settings.company_address
+        if settings.company_phone
+          p #{settings.company_phone} |
+        if contactLine
+          p= contactLine
+
+      p Date: #{letterDate}
+
+      p To,
+      p #{employeeName}
+      p #{employeeAddress}
+
+      p Subject: Appointment as #{jobTitle}
+
+      p Dear #{employeeName},
+
+      p
+        | We are pleased to appoint you as a #{jobTitle} at #{companyDisplayName}, effective #{joiningDate}, permanently. You will report to your reporting manager.
+
+      p
+        | Your initial place of work will be #{workLocation}, although transfers may occur as needed to meet business requirements. Working hours will follow company policy (e.g. 9:30 AM to 6:30 PM, Monday to Friday).
+
+      ul.terms
+        li Your annual gross salary will be as agreed, subject to applicable taxes (details in the annexure).
+        li You will be on a 6-month probation period, after which performance will be reviewed.
+        li You are entitled to paid leave and other benefits as outlined in company policy.
+
+      p
+        | This appointment may be terminated by either party with written notice as per company policy, or payment instead of salary.
+
+      p
+        | Kindly sign and return a copy of this letter as confirmation of your acceptance. We welcome you aboard and wish you success in your new role.
+
+      .signature
+        p Warm regards,
+        p Authorised Signatory
