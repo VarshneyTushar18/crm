@@ -1,14 +1,16 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const PDFDocument = require("pdfkit");
 const Employee = mongoose.model("Employee");
 const User = mongoose.model("User");
 
-const appointmentLetterDirectory = path.resolve(
-  __dirname,
-  "../public/download/employee"
+// Vercel serverless allows writes only under the OS temp dir, not project paths.
+const appointmentLetterDirectory = path.join(
+  os.tmpdir(),
+  "bright-crm-employee-letters"
 );
 
 const brandLogoPath = path.resolve(
