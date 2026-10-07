@@ -49,3 +49,29 @@ export const resetEmployeePassword = async (id, newPassword) => {
   });
   return res.data;
 };
+
+export const downloadAppointmentLetter = async (id) => {
+  const res = await axiosInstance.get(`employee/appointment-letter/${id}`, {
+    responseType: "blob",
+  });
+
+  const url = window.URL.createObjectURL(res.data);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `Appointment-Letter-${id}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
+export const viewAppointmentLetter = async (id) => {
+  const preview = window.open("about:blank", "_blank");
+  const res = await axiosInstance.get(`employee/appointment-letter/${id}`, {
+    responseType: "blob",
+  });
+
+  const url = window.URL.createObjectURL(res.data);
+  if (preview) preview.location.href = url;
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+};

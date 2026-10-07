@@ -15,7 +15,7 @@ import {
   message,
   Empty,
   Space,
-  Popconfirm,
+  Dropdown,
 } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
@@ -25,6 +25,8 @@ import {
   updateEmployee,
   deleteEmployee,
   resetEmployeePassword,
+  downloadAppointmentLetter,
+  viewAppointmentLetter,
 } from "./employeeApi";
 
 const { Title, Text } = Typography;
@@ -284,6 +286,17 @@ export default function Employee() {
     }
   };
 
+  const handleAppointmentLetter = async (record) => {
+    try {
+      await downloadAppointmentLetter(record._id);
+      message.success("Appointment letter downloaded");
+    } catch (error) {
+      message.error(
+        error?.response?.data?.message || "Failed to download appointment letter"
+      );
+    }
+  };
+
   const columns = [
     {
       title: "Employee ID",
@@ -337,31 +350,54 @@ export default function Employee() {
     },
     {
       title: "Action",
-      width: 260,
+      width: 120,
       fixed: "right",
-      render: (_, record) => (
-        <Space wrap>
-          <Button type="link" onClick={() => openEditModal(record)}>
-            Edit
-          </Button>
+      render: (_, record) => {
+        const items = [
+          { key: "edit", label: "Edit" },
+          { key: "reset-password", label: "Reset Password" },
+          {
+            key: "appointment-letter",
+            label: "Appointment Letter",
+            children: [
+              { key: "appointment-view", label: "View" },
+              { key: "appointment-download", label: "Download" },
+            ],
+          },
+          { type: "divider" },
+          { key: "delete", label: "Delete", danger: true },
+        ];
 
-          <Button type="link" onClick={() => openResetPasswordModal(record)}>
-            Reset Password
-          </Button>
+        const handleAction = ({ key }) => {
+          if (key === "edit") openEditModal(record);
+          if (key === "reset-password") openResetPasswordModal(record);
+          if (key === "appointment-view") {
+            viewAppointmentLetter(record._id).catch((error) =>
+              message.error(
+                error?.response?.data?.message ||
+                  "Failed to open appointment letter"
+              )
+            );
+          }
+          if (key === "appointment-download") handleAppointmentLetter(record);
+          if (key === "delete") {
+            Modal.confirm({
+              title: "Delete Employee",
+              content: "Are you sure you want to delete this employee?",
+              okText: "Yes",
+              cancelText: "No",
+              okButtonProps: { danger: true },
+              onOk: () => handleDeleteEmployee(record._id),
+            });
+          }
+        };
 
-          <Popconfirm
-            title="Delete Employee"
-            description="Are you sure you want to delete this employee?"
-            onConfirm={() => handleDeleteEmployee(record._id)}
-            okText="Yes"
-            cancelText="No"
-          >
-            <Button type="link" danger>
-              Delete
-            </Button>
-          </Popconfirm>
-        </Space>
-      ),
+        return (
+          <Dropdown menu={{ items, onClick: handleAction }} trigger={["click"]}>
+            <Button>Actions</Button>
+          </Dropdown>
+        );
+      },
     },
   ];
 
