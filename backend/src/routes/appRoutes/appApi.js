@@ -70,6 +70,7 @@ router.use("/rfq", asRouter(require("./rfq.routes"), "rfq.routes"));
 router.use("/employee", asRouter(require("./employee.routes"), "employee.routes"));
 router.use("/attendance", asRouter(require("./attendance.routes"), "attendance.routes"));
 router.use("/leave", asRouter(require("./leave.routes"), "leave.routes"));
+router.use("/day-off", asRouter(require("./dayOff.routes"), "dayOff.routes"));
 router.use(
   "/worker-tasks",
   asRouter(require("./workerTask.routes"), "workerTask.routes")
@@ -99,6 +100,10 @@ router.use("/customer", asRouter(require("./customer.routes"), "customer.routes"
 router.use(
   "/dashboard",
   asRouter(require("./dashboard.routes"), "dashboard.routes")
+);
+router.use(
+  "/assistant",
+  asRouter(require("./assistant.routes"), "assistant.routes")
 );
 router.use("/contact", require("./contact.routes"));
 

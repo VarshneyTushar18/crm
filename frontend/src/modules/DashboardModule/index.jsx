@@ -54,7 +54,7 @@ import { useSelector } from 'react-redux';
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
-const POLLING_INTERVAL_MS = 30_000;
+const POLLING_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 function BarList({ items = [], loading, valueKey = 'count', labelKey = 'label', color = '#339393' }) {
   if (loading) {

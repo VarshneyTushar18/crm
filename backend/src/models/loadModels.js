@@ -35,6 +35,8 @@ require("./appModels/JobComment");
 require("./appModels/KanbanTask");
 require("./appModels/Lead");
 require("./appModels/Leave");
+require("./appModels/CompanyDayOff");
+require("./appModels/EmailDraft");
 require("./appModels/MaterialPurchase");
 require("./appModels/Ncr");
 require("./appModels/Notification");

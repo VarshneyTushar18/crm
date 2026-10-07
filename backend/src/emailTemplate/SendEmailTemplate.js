@@ -102,6 +102,74 @@ exports.SendPaymentReceipt = ({
     `;
 };
 
+exports.AnnouncementEmail = ({
+  title = 'Company notice',
+  name = '',
+  body = '',
+}) => {
+  const escapeHtml = (s) =>
+    String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+  const safeTitle = escapeHtml(title);
+  const safeName = escapeHtml(name);
+  const safeBody = String(body || '')
+    .split('\n')
+    .map((line) => escapeHtml(line.trim()))
+    .filter(Boolean)
+    .map(
+      (line) =>
+        `<p style="font-size:15px;line-height:24px;margin:0 0 12px 0;color:#333;">${line}</p>`
+    )
+    .join('');
+
+  return `
+    <div style="background-color:#f6f8fb;padding:24px 0;margin:0;">
+      <head data-id="__react-email-head">
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>${safeTitle}</title>
+      </head>
+      <div
+        id="__react-email-preview"
+        style="display:none;overflow:hidden;line-height:1px;opacity:0;max-height:0;max-width:0"
+      >
+        ${safeTitle}
+      </div>
+      <body data-id="__react-email-body" style="margin:0;padding:0;background-color:#f6f8fb;">
+        <table
+          role="presentation"
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+          width="100%"
+          style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #eaeaea;font-family:Arial,sans-serif;"
+        >
+          <tr>
+            <td style="background:#1890ff;padding:24px 32px;color:#ffffff;">
+              <h2 style="margin:0;font-size:22px;line-height:30px;">${safeTitle}</h2>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;">
+              <p style="font-size:15px;line-height:24px;margin:0 0 16px 0;">
+                Hello ${safeName || 'Team'},
+              </p>
+              ${safeBody || '<p style="font-size:15px;line-height:24px;margin:0 0 12px 0;color:#333;">Please see this company notice.</p>'}
+              <p style="font-size:14px;line-height:22px;margin:24px 0 0 0;color:#333;">
+                Best regards,<br />
+                Bright Balustrading Team
+              </p>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </div>
+  `;
+};
+
 exports.CustomerOnboarding = ({
   title = 'Welcome to Bright Balustrading - Your Customer Portal Account is Ready',
   name = '',

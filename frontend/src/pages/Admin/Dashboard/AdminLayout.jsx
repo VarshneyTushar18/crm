@@ -5,6 +5,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Navigation from "../../../apps/Navigation/NavigationContainer";
 import BrandLogo from "@/components/BrandLogo";
 import NotificationBell from "@/components/NotificationBell";
+import { AdminAssistantProvider, AskCrmHeaderButton } from "@/components/AdminAssistant";
 import useResponsive from "@/hooks/useResponsive";
 import {
   isSiteEngineerBlockedPath,
@@ -14,7 +15,7 @@ import {
 const { Header, Content } = Layout;
 const { Text } = Typography;
 
-export default function AdminLayout() {
+function AdminLayoutShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isMobile } = useResponsive();
@@ -39,6 +40,8 @@ export default function AdminLayout() {
       navigate(SITE_ENGINEER_HOME, { replace: true });
     }
   }, [location.pathname, user?.role, navigate]);
+
+  const headerBtnSize = isMobile ? "small" : "middle";
 
   return (
     <Layout className="admin-shell">
@@ -76,22 +79,23 @@ export default function AdminLayout() {
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
             <Button
               type="default"
-              size={isMobile ? "small" : "middle"}
+              size={headerBtnSize}
               icon={<ProjectOutlined />}
               onClick={() => navigate("/admin/jobs")}
             >
               Jobs
             </Button>
+            <AskCrmHeaderButton size={headerBtnSize} />
             <Button
               type="default"
-              size={isMobile ? "small" : "middle"}
+              size={headerBtnSize}
               icon={<MessageOutlined />}
               onClick={() => navigate("/admin/team-chat")}
             >
               Chat
             </Button>
             <NotificationBell />
-            <Button danger size={isMobile ? "small" : "middle"} onClick={logout}>
+            <Button danger size={headerBtnSize} onClick={logout}>
               Logout
             </Button>
           </div>
@@ -104,5 +108,13 @@ export default function AdminLayout() {
         </Content>
       </Layout>
     </Layout>
+  );
+}
+
+export default function AdminLayout() {
+  return (
+    <AdminAssistantProvider>
+      <AdminLayoutShell />
+    </AdminAssistantProvider>
   );
 }

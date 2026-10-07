@@ -13,6 +13,7 @@ import {
   Tag,
   Typography,
   Spin,
+  Alert,
 } from "antd";
 import {
   EnvironmentOutlined,
@@ -23,6 +24,7 @@ import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 import LivenessPromptModal from "@/components/LivenessPromptModal";
 import { getAttendanceHistory } from "@/api/workerAttendanceApi";
+import { getActiveDayOffs } from "@/api/dayOffApi";
 import { getMyLeaves } from "@/pages/Leave/leaveApi";
 import { useWorkerJobs } from "@/pages/Worker/useWorkerJobs";
 import { useWorkerAttendance } from "@/pages/Worker/useWorkerAttendance";
@@ -47,6 +49,7 @@ export default function WorkerDashboardHome() {
   const { jobs, loading: jobsLoading, todayAssignments, upcomingAssignments } = useWorkerJobs();
   const [history, setHistory] = useState([]);
   const [leaves, setLeaves] = useState([]);
+  const [dayOffs, setDayOffs] = useState({ company: [], personal: [] });
   const [dataLoading, setDataLoading] = useState(true);
   const [calendarMonth, setCalendarMonth] = useState(dayjs());
 
@@ -82,15 +85,21 @@ export default function WorkerDashboardHome() {
 
   const loadHistory = async () => {
     try {
-      const [list, leaveList] = await Promise.all([
+      const [list, leaveList, activeDayOffs] = await Promise.all([
         getAttendanceHistory(),
         getMyLeaves().catch(() => []),
+        getActiveDayOffs().catch(() => ({ company: [], personal: [] })),
       ]);
       setHistory(Array.isArray(list) ? list : []);
       setLeaves(Array.isArray(leaveList) ? leaveList : []);
+      setDayOffs({
+        company: Array.isArray(activeDayOffs?.company) ? activeDayOffs.company : [],
+        personal: Array.isArray(activeDayOffs?.personal) ? activeDayOffs.personal : [],
+      });
     } catch {
       setHistory([]);
       setLeaves([]);
+      setDayOffs({ company: [], personal: [] });
     }
   };
 
@@ -242,12 +251,55 @@ export default function WorkerDashboardHome() {
 
   const topColSpan = primaryToday ? 14 : 12;
 
+  const tomorrowKey = dayjs().add(1, "day").format("YYYY-MM-DD");
+  const todayKey = dayjs().format("YYYY-MM-DD");
+
+  const companyBanners = (dayOffs.company || []).filter(
+    (c) => c.date === todayKey || c.date === tomorrowKey
+  );
+  const personalBanners = (dayOffs.personal || []).filter((p) => {
+    if (!p?.startDate || !p?.endDate) return false;
+    const start = dayjs(p.startDate).startOf("day");
+    const end = dayjs(p.endDate).startOf("day");
+    const tomorrow = dayjs(tomorrowKey);
+    const today = dayjs(todayKey);
+    const covers = (d) =>
+      (d.isSame(start) || d.isAfter(start)) && (d.isSame(end) || d.isBefore(end));
+    return covers(today) || covers(tomorrow);
+  });
+
   return (
     <div className="page-shell dashboard-page">
       <Title level={3} className="dashboard-section-title" style={{ marginBottom: 4 }}>
         {getTimeGreeting()}, {user?.name || "Worker"} 👋
       </Title>
       <Text type="secondary">Here is your day at a glance.</Text>
+
+      {companyBanners.map((c) => (
+        <Alert
+          key={`company-${c.id || c.date}`}
+          type="warning"
+          showIcon
+          style={{ marginTop: 16 }}
+          message={
+            c.date === tomorrowKey
+              ? `${c.title || "Company off day"} — tomorrow (${c.displayDate || c.date})`
+              : `${c.title || "Company off day"} — today (${c.displayDate || c.date})`
+          }
+          description={c.message || undefined}
+        />
+      ))}
+
+      {personalBanners.map((p) => (
+        <Alert
+          key={`personal-${p.leaveId}`}
+          type="info"
+          showIcon
+          style={{ marginTop: 12 }}
+          message={p.title || "You are marked off"}
+          description={p.message || p.reason || undefined}
+        />
+      ))}
 
       <Row gutter={[16, 16]} style={{ marginTop: 20 }} align="stretch">
         <Col xs={24} lg={topColSpan}>

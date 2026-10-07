@@ -1,5 +1,8 @@
 const { passwordVerfication } = require('@/emailTemplate/emailVerfication');
-const { CustomerOnboarding } = require('@/emailTemplate/SendEmailTemplate');
+const {
+  CustomerOnboarding,
+  AnnouncementEmail,
+} = require('@/emailTemplate/SendEmailTemplate');
 
 const { Resend } = require('resend');
 
@@ -12,12 +15,16 @@ const sendMail = async ({
   type = 'emailVerfication',
   emailToken,
   password, // for customer onboarding
+  title, // announcement
+  body, // announcement
 }) => {
   try {
     // ✅ Dynamic subject handling
     if (!subject) {
       if (type === 'customerOnboarding') {
         subject = 'Your Customer Portal Login Details';
+      } else if (type === 'announcement') {
+        subject = title || 'Company notice';
       } else {
         subject = 'Verify your email | Idurar';
       }
@@ -34,6 +41,11 @@ const sendMail = async ({
 
       if (type === 'customerOnboarding') {
         console.log(`\n🔐 PASSWORD: ${password}`);
+      }
+
+      if (type === 'announcement') {
+        console.log(`\n📝 Title: ${title || subject}`);
+        console.log(`Body:\n${body || ''}`);
       }
 
       if (link) {
@@ -59,6 +71,12 @@ const sendMail = async ({
         email,
         password,
         loginLink: link,
+      });
+    } else if (type === 'announcement') {
+      html = AnnouncementEmail({
+        title: title || subject,
+        name,
+        body: body || '',
       });
     } else {
       html = passwordVerfication({
