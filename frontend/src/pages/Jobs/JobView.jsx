@@ -466,11 +466,11 @@ export default function JobView() {
                       <Space size="small">
                         {stage.route && (
                           <Button size="small" onClick={() => navigate(`${stage.route}?jobId=${id}`)}>
-                            Open External App
+                            View in Details
                           </Button>
                         )}
                         <Button size="small" type={isComplete ? "default" : "primary"} onClick={() => openStageModal(stage.key)}>
-                          {isComplete ? "View Meta" : "Manual Override"}
+                          Manual Override
                         </Button>
                       </Space>
                     </div>
